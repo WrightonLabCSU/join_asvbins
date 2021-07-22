@@ -7,29 +7,6 @@ from skbio import write as write_fa
 from skbio import read as read_fa
 from skbio import Sequence
 
-# NOTE, what and why
-HEADERS = set(['All_MegahitCoAss_bin.3_k141_331864',
-           'All_IDBACoAss_bin.239_scaffold_202',
-           'LM_meg_bin.137_k119_157622', 'LM_bin.60_scaffold_9911',
-           'LO_scaffold.metabat-bins-_--verysensitive.129.fa_scaffold_7869',
-           'LM_bin.141_scaffold_10913', 'All_IDBACoAss_bin.260_scaffold_629',
-           'LO_scaffold.metabat-bins-_--verysensitive.104.fa_scaffold_2622',
-           'LM_bin.91_scaffold_3243',
-           'LP_scaffold.metabat-bins-_--verysensitive.56.fa_scaffold_275',
-           'LP_scaffold.metabat-bins-_--verysensitive.121.fa_scaffold_13505',
-           'LP_scaffold.metabat-bins-_--verysensitive.121.fa_scaffold_1582',
-           'All_IDBACoAss_bin.143_scaffold_2701',
-           'All_MegahitCoAss_bin.116_k141_377345',
-           'KS_bin.91_scaffold_2441', 'KS_meg_bin.64_k141_265517',
-           'KL_meg_bin.6_k141_250169',
-           'KS_bin.40_scaffold_578', 'All_IDBACoAss_bin.59_scaffold_864',
-           'LP_scaffold.metabat-bins-_--verysensitive.143.fa_scaffold_13218',
-           'LM_bin.134_scaffold_10792', 'LO_meg_bin.103_k119_131170',
-           'LM_meg_bin.96_k119_50248', 'All_MegahitCoAss_bin.206_k141_54051'])
-
-def read_and_process_blast(fasta_path, data_path):
-    pass
-
 def fasta_to_df(path):
     df = pd.DataFrame({i.metadata['id']:[i.values]
                        for i in read_fa(path, format='fasta')})
@@ -39,6 +16,15 @@ def fasta_to_df(path):
     return df
 
 
+def df_to_fasta(df:pd.DataFrame, path:str):
+    seqs = (Sequence(x['seq'],
+                     metadata={"id": x["header"],
+                               'description': x["note"]}
+                     )
+            for _, x in df.iterrows())
+    write_fa(seqs, 'fasta', path)
+
+
 def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
     data.sort_values('start')
     joined = data.iloc[0]
@@ -46,7 +32,8 @@ def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
         return joined
     for _, to_join in data.iloc[1:].iterrows():
         if to_join['start'] > joined['stop']:
-            raise ValueError("Found non-overlapping duplicate in barrnap data")
+            raise Warning("Found non-overlapping duplicate in barrnap data")
+            continue
         trim_point = joined['stop'] - to_join['start']
         joined['seq'] = np.concatenate([joined['seq'],
                                         to_join['seq'][trim_point:]])
@@ -76,8 +63,7 @@ def test_barnap_procesing():
         4: ['b:3-7',       'defg'],
         5: ['c:1002-1007', 'abcde'],
         6: ['c:1003-1010', 'bcdefghij'],
-        7: ['d:0-3',       'abcd'],
-    }, index=['header', 'seq']).T
+        7: ['d:0-3',       'abcd'], }, index=['header', 'seq']).T
     expect_df = pd.DataFrame({
         'a': ['a:0-3',       'abc'],
         'b': ['b:0-7',       'abcdefg'],
@@ -105,13 +91,14 @@ def read_blast(fasta_path:str, stats_path:str) -> pd.DataFrame:
     stats = pd.read_csv(stats_path, header=None, sep='\t', names=[
         "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
         "qstart", "qend", "sstart", "send", "evalue", "bitscore"])
-    # There will still be duplicates
     data = pd.merge(fasta, stats, right_on='sseqid', left_on='header',
                     how='inner')
     return data
 
 
-def read_and_process_blast(fasta_path, stats_path, headers=None):
+def read_and_process_blast(fasta_path:str, stats_path:str, headers=None):
+    # Note get stats on balst evalue and lenther so that  we get cutofs
+    # Barnnap
     data = read_blast(fasta_path, stats_path)
     data = process_blast(data, headers=headers)
     return data
@@ -128,18 +115,12 @@ def get_blast_dups(data):
 def process_blast(data:pd.DataFrame, headers=None) -> pd.DataFrame:
     get_blast_dups(data)
     # Remove blast data dups keeping the longest string
-    # NOTE unlike barrnap blast dubs don't overlap so i do it this way
     data = data.sort_values('length', ascending=False).\
         drop_duplicates('header')
     # Keep only elements of blast_fasta_list that are in headers object
     if headers is not None:
         data = pd.merge(data, pd.DataFrame({
             'header': list(headers)}), on='header')
-    # Trim scaffold sequences to length of 16S from blast_16s
-    # NOTE I don't know:
-    #      Why the sequences need to be reversed sometimes
-    #      why they need to be reversed
-    # NOTE I failed to fined the meaning of the header
     data['seq'] = data.apply(
         lambda x: x["seq"][x["sstart"] - 1:x["send"]]
         if x["sstart"] < x["send"]
@@ -147,8 +128,7 @@ def process_blast(data:pd.DataFrame, headers=None) -> pd.DataFrame:
     return data
 
 
-def combine_blast_fasta(blast:pd.DataFrame, barrnap:pd.DataFrame,
-                        headers=None) -> pd.DataFrame:
+def combine_fasta(blast:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
     barrnap = barrnap[['header', 'seq']]
     blast = blast[['header', 'seq']]
     blast['blast'] = True
@@ -159,13 +139,23 @@ def combine_blast_fasta(blast:pd.DataFrame, barrnap:pd.DataFrame,
     data[['blast', 'barrnap']] = data[['blast', 'barrnap']].fillna(False)
     data.rename(columns={'seq_x': 'seq_bar', 'seq_y': 'seq_bla'},
                 inplace=True)
-    data.apply(lambda x:
+    data['seq'] = data.apply(lambda x:
                     x['seq_bar'] if x['barrnap'] and not x['blast']
                else x['seq_bla'] if x['blast'] and not x['barrnap']
                else x['seq_bar'] if np.array_equal(x['seq_bar'], x['seq_bla'])
                else raise_(
                    Exception("Non equal duplicates in barrnap, and blast")),
         axis=1)
+    data[['seq', 'note']] = data.apply(
+        lambda x:
+                    (x['seq_bar'], 'Barnnap')
+               if x['barrnap'] and not x['blast']
+               else (x['seq_bla'], 'BLAST')
+               if x['blast'] and not x['barrnap']
+               else (x['seq_bar'], 'Barnnap+BLAST')
+               if (len(x['seq_bar']) >= len(x['seq_bla']))
+               else (x['seq_bar'], 'BLAST+Barnnap'),
+        axis=1, result_type='expand')
     print("After Merge: \n"
           " There are %i Sequences found by Barrnap.\n"
           " There are %i Sequences found by BLAST.\n"
@@ -174,13 +164,26 @@ def combine_blast_fasta(blast:pd.DataFrame, barrnap:pd.DataFrame,
              sum(data['blast']),
              sum(data['blast'] & data['barrnap']))
           )
-    return data
+    return data[['header', 'seq', 'note']]
+
+
+def combine_blast_barrnap(blast_fasta_path:str, blast_stats_path:str,
+                          barrnap_fasta_path:str, out_fasta_path:str):
+    blast = read_and_process_blast(blast_fasta_path, blast_stats_path)
+    barrnap = read_and_process_barrnap(barrnap_fasta_path)
+    data = combine_fasta(blast, barrnap)
+    df_to_fasta(data, out_fasta_path)
+
 
 # blast_fasta_path = "../../results/original_approach/blast_fastafile-16S.fna"
 # blast_stats_path = "../../results/original_approach/blast_fastafile-16S.txt"
 # barrnap_fasta_path = \
 #     "../../results/original_approach/barrnap_fastafile-16S.fna"
+# out_test_path = "../../results/original_approach/new_output.fa"
 # blast = read_and_process_blast(blast_fasta_path, blast_stats_path)
+# blast_headers = read_and_process_blast(blast_fasta_path, blast_stats_path,
+# headers=HEADERS)
 # barrnap = read_and_process_barrnap(barrnap_fasta_path)
-# data = combine_blast_fasta(blast, barrnap)
-# data = combine_blast_fasta(blast, barrnap, headers=HEADERS)
+# data = combine_fasta(blast, barrnap)
+# data = combine_fasta(blast_headers, barrnap)
+# df_to_fasta(data, out_test_path)

@@ -1,0 +1,163 @@
+"""The snake make file that controls the process, imported by a python warper"""
+import os
+import glob
+import pathlib
+from asv_to_bins.extract_16s import combine_blast_barrnap
+from run_workflow import DEFAULT_NAME_FOR_COMBINED_BINS
+from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
+
+HTTP = HTTPRemoteProvider()
+
+# !snakemake combine_input_fa --directory '../results/snakemake_test_2/' --config input_fa_folder=/home/projects/16s_to_bins_project/data/salmonella/ input_fna=test.fna --cores 2
+
+# This will eventually move the output file to a designated location
+rule all:
+    input:
+        "all_asv_results.fna"
+
+rule no_asvs:
+    input:
+        "combined_16s_from_bins.fna"
+
+rule copy_asv_to_place:
+    input:
+        config['asv_seqs_path']
+    output:
+       "asv_seqs.fna"
+    shell:
+        "cp {input} {output}"
+
+rule copy_output_to_place:
+    input:
+        "combined_16s_from_bins.asv_seqs-blast.fna"
+    output:
+        "all_asv_results.fna"
+    shell:
+        "cp {input} {output}"
+
+rule copy_ecoli_to_place_TEMPORARY:
+    input:
+        "/home/projects-wrighton/NIH_Salmonella/Salmonella/Metagenomes/MAG_database/16S_From_All_Bins/blast/ecoli_16S.txt"
+    output:
+        "ecoli_16S.fna"
+    shell:
+        "cp {input} {output}"
+
+rule copy_bins_to_place:
+    input:
+        config['bins_all_seqs_path']
+    output:
+        DEFAULT_NAME_FOR_COMBINED_BINS + ".fna"
+    shell:
+        "cp {input} {output}"
+
+rule combine_blast_barrnap:
+    input:
+        blast_fasta_path = DEFAULT_NAME_FOR_COMBINED_BINS + ".ecoli_16S-blast.fna",
+        blast_stats_path =  DEFAULT_NAME_FOR_COMBINED_BINS + ".ecoli_16S-blastn.txt",
+        barrnap_fasta_path = "barrnap_fastafile-16S.fna"
+    output:
+        out_fasta_path = "combined_16s_from_bins.fna"
+    run:
+        combine_blast_barrnap(input['blast_fasta_path'], input['blast_stats_path'],
+                input['barrnap_fasta_path'], output['out_fasta_path'])
+
+rule combine_input_fa:
+    input:
+        glob.glob(os.path.join(config['bins_folder'], "*.fa"))
+    output:
+        config['bins_all_seqs_path']
+    shell:
+        "cat {input} > {output}"
+
+rule run_barrnap:
+    input:
+        DEFAULT_NAME_FOR_COMBINED_BINS + ".fna"
+    output:
+        "rrna.gff"
+    threads: workflow.cores
+    shell:
+        "barrnap --threads {threads} {input} > {output}"
+
+rule grep_16s:
+    input:
+        "rrna.gff"
+    output:
+        "16S-gff.gff"
+    shell:
+        "grep \"16S\" {input} > {output}"
+
+rule bedtools_get_16s_fasta:
+    input:
+        config['bins_all_seqs_path'],
+        "16S-gff.gff"
+    output:
+        "16S-fasta.fna"
+    shell:
+        "bedtools getfasta -fi {input[0]} -bed {input[1]} -fo {output}"
+
+rule get_16s_headers_barrnap:
+    input:
+        "16S-fasta.fna"
+    output:
+        "16S-id.txt"
+    shell:
+        "grep \">\" {input} | sed 's/>//g' > {output}"
+
+rule samtools_get_16s_fna:
+    input:
+        "16S-fasta.fna",
+        "16S-id.txt"
+    output:
+        "barrnap_fastafile-16S.fna"
+    shell:
+        "xargs samtools faidx {input[0]} < {input[1]} > {output}"
+
+rule make_blast_db:
+    input:
+        "{blastdb}.fna"
+    output:
+        "{blastdb}-blastdb.nhr",
+        "{blastdb}-blastdb.nin",
+        "{blastdb}-blastdb.nsq"
+    shell:
+        "makeblastdb -dbtype nucl -in {input} -out {wildcards.blastdb}-blastdb"
+
+rule apply_blastn:
+    input:
+        "{blastq}.fna",
+        "{blastdb}-blastdb.nhr",
+        "{blastdb}-blastdb.nin",
+        "{blastdb}-blastdb.nsq"
+    output:
+        "{blastdb}.{blastq}-blastn.txt"
+    shell:
+        "blastn -db {wildcards.blastdb}-blastdb -out {output} -query {input[0]} -outfmt 6"
+
+rule get_headers_blast:
+    input:
+        "{blastdb}.{blastq}-blastn.txt"
+    output:
+        "{blastdb}.{blastq}-blast_headers.txt"
+    shell:
+        "awk '{{print $2}}' {input} > {output}"
+
+rule pullseq_header_name:
+    input:
+        config['bins_all_seqs_path'],
+        "{blastdb}.{blastq}-blast_headers.txt"
+    output:
+        "{blastdb}.{blastq}-blast.fna"
+    shell:
+        "pullseq_header_name.py -i {input[0]} -o {output} -e F -n {input[1]}"
+
+
+# rule get_silva_db_TEMPORARY:
+#     input:
+#         HTTP.remote("https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_SSURef_NR99_tax_silva.fasta.gz",
+#             keep_local=True)
+#     output:
+#         "silva.fasta"
+#     shell:
+#         "gzip -d {input} > {output}"
+
