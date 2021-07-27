@@ -132,7 +132,7 @@ rule apply_blastn:
     output:
         "{blastdb}.{blastq}-blastn.txt"
     shell:
-        "blastn -db {wildcards.blastdb}-blastdb -out {output} -query {input[0]} -outfmt 6"
+        "blastn -db {wildcards.blastdb}-blastdb -out {output} -query {input[0]} -outfmt 6 -max_target_seqs 1"
 
 rule get_headers_blast:
     input:
