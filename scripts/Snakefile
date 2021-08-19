@@ -3,7 +3,8 @@ import os
 import glob
 import pathlib
 from asv_to_bins.extract_16s import combine_blast_barrnap
-from run_workflow import DEFAULT_NAME_FOR_COMBINED_BINS
+from join_asvbins import DEFAULT_NAME_FOR_COMBINED_BINS
+# from join_asvbins import combine_blast_barrnap
 from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
 
 HTTP = HTTPRemoteProvider()
@@ -62,13 +63,21 @@ rule combine_blast_barrnap:
         combine_blast_barrnap(input['blast_fasta_path'], input['blast_stats_path'],
                 input['barrnap_fasta_path'], output['out_fasta_path'])
 
+if config['bins_folder'] is not None:
+        all_input_bins = glob.glob(os.path.join(config['bins_folder'], "*.fa*"))
 rule combine_input_fa:
     input:
-        glob.glob(os.path.join(config['bins_folder'], "*.fa"))
+        all_input_bins
     output:
         config['bins_all_seqs_path']
-    shell:
-        "cat {input} > {output}"
+    run:
+       shell("touch temp-{output}tmp.fna")
+       for i in all_input_bins:
+           if i.endswith(".fa"):
+               shell("cat {i} >> temp-{output}")
+           elif i.endswith('.fa.gz'):
+               shell("gzip -cd  {i} >> temp-{output}")
+       shell("mv temp-{output} {output}")
 
 rule run_barrnap:
     input:
@@ -117,22 +126,19 @@ rule make_blast_db:
     input:
         "{blastdb}.fna"
     output:
-        "{blastdb}-blastdb.nhr",
-        "{blastdb}-blastdb.nin",
-        "{blastdb}-blastdb.nsq"
-    shell:
-        "makeblastdb -dbtype nucl -in {input} -out {wildcards.blastdb}-blastdb"
+        directory("{blastdb}-dbfolder")
+    run:
+       shell("mkdir {wildcards.blastdb}-dbfolder")
+       shell("makeblastdb -dbtype nucl -in {input} -out {wildcards.blastdb}-dbfolder/{wildcards.blastdb}-blastdb")
 
 rule apply_blastn:
     input:
         "{blastq}.fna",
-        "{blastdb}-blastdb.nhr",
-        "{blastdb}-blastdb.nin",
-        "{blastdb}-blastdb.nsq"
+        "{blastdb}-dbfolder"
     output:
         "{blastdb}.{blastq}-blastn.txt"
     shell:
-        "blastn -db {wildcards.blastdb}-blastdb -out {output} -query {input[0]} -outfmt 6 -max_target_seqs 1"
+        "blastn -db {wildcards.blastdb}-dbfolder/{wildcards.blastdb}-blastdb -out {output} -query {input[0]} -outfmt 6 -max_target_seqs 1"
 
 rule get_headers_blast:
     input:
@@ -149,7 +155,7 @@ rule pullseq_header_name:
     output:
         "{blastdb}.{blastq}-blast.fna"
     shell:
-        "pullseq_header_name.py -i {input[0]} -o {output} -e F -n {input[1]}"
+        "/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {input[1]}"
 
 
 # rule get_silva_db_TEMPORARY:

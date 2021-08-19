@@ -32,7 +32,7 @@ def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
         return joined
     for _, to_join in data.iloc[1:].iterrows():
         if to_join['start'] > joined['stop']:
-            raise Warning("Found non-overlapping duplicate in barrnap data")
+            # raise Warning("Found non-overlapping duplicate in barrnap data")
             continue
         trim_point = joined['stop'] - to_join['start']
         joined['seq'] = np.concatenate([joined['seq'],
