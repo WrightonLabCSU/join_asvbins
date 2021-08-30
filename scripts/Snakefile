@@ -3,64 +3,35 @@ import os
 import glob
 import pathlib
 from asv_to_bins.extract_16s import combine_blast_barrnap
-from join_asvbins import DEFAULT_NAME_FOR_COMBINED_BINS
-# from join_asvbins import combine_blast_barrnap
-from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
-
-HTTP = HTTPRemoteProvider()
 
 # !snakemake combine_input_fa --directory '../results/snakemake_test_2/' --config input_fa_folder=/home/projects/16s_to_bins_project/data/salmonella/ input_fna=test.fna --cores 2
 
 # This will eventually move the output file to a designated location
 rule all:
     input:
-        "all_asv_results.fna"
+       f"stage1_asvs_{config['tool']}.tab"
 
 rule no_asvs:
     input:
-        "combined_16s_from_bins.fna"
+       f"stage1_asvs_{config['tool']}.tab"
 
-rule copy_asv_to_place:
-    input:
-        config['asv_seqs_path']
-    output:
-       "asv_seqs.fna"
-    shell:
-        "cp {input} {output}"
+# rule copy_output_to_place:
+#     input:
+#         "combined_16s_from_bins.asv_seqs-mmseqs.fna" if config['mmseqs'] else "combined_16s_from_bins.asv_seqs-blast.fna"
+#     output:
+#         "all_asv_results.fna"
+#     shell:
+#         "cp {input} {output}"
 
-rule copy_output_to_place:
+rule combine_barrnap_with_other: # where other is blast or mmseqs
     input:
-        "combined_16s_from_bins.asv_seqs-blast.fna"
-    output:
-        "all_asv_results.fna"
-    shell:
-        "cp {input} {output}"
-
-rule copy_ecoli_to_place_TEMPORARY:
-    input:
-        "/home/projects-wrighton/NIH_Salmonella/Salmonella/Metagenomes/MAG_database/16S_From_All_Bins/blast/ecoli_16S.txt"
-    output:
-        "ecoli_16S.fna"
-    shell:
-        "cp {input} {output}"
-
-rule copy_bins_to_place:
-    input:
-        config['bins_all_seqs_path']
-    output:
-        DEFAULT_NAME_FOR_COMBINED_BINS + ".fna"
-    shell:
-        "cp {input} {output}"
-
-rule combine_blast_barrnap:
-    input:
-        blast_fasta_path = DEFAULT_NAME_FOR_COMBINED_BINS + ".ecoli_16S-blast.fna",
-        blast_stats_path =  DEFAULT_NAME_FOR_COMBINED_BINS + ".ecoli_16S-blastn.txt",
+        other_fasta_path = "stage1_asvs_{tool}_matches.fna",
+        other_stats_path =  "stage1_asvs_{tool}.tab",
         barrnap_fasta_path = "barrnap_fastafile-16S.fna"
     output:
-        out_fasta_path = "combined_16s_from_bins.fna"
+        out_fasta_path = "barrnap_and_{tool}_asvs.fna"
     run:
-        combine_blast_barrnap(input['blast_fasta_path'], input['blast_stats_path'],
+        combine_blast_barrnap(input['other_fasta_path'], input['other_stats_path'],
                 input['barrnap_fasta_path'], output['out_fasta_path'])
 
 if config['bins_folder'] is not None:
@@ -69,101 +40,140 @@ rule combine_input_fa:
     input:
         all_input_bins
     output:
-        config['bins_all_seqs_path']
+        config['all_bin_seqs_path']
     run:
-       shell("touch temp-{output}tmp.fna")
+       shell("touch {output}")
        for i in all_input_bins:
            if i.endswith(".fa"):
-               shell("cat {i} >> temp-{output}")
+               shell("cat {i} >> {output}")
            elif i.endswith('.fa.gz'):
-               shell("gzip -cd  {i} >> temp-{output}")
-       shell("mv temp-{output} {output}")
+               shell("gzip -cd  {i} >> {output}")
 
-rule run_barrnap:
+rule mmseqs_stage1_search:
     input:
-        DEFAULT_NAME_FOR_COMBINED_BINS + ".fna"
+        config['all_bin_seqs_path'],
+        config['generic_16s_data'] # Query
     output:
-        "rrna.gff"
+        directory("mmseqs_stage1_db"),
+        "stage1_asvs_mmseqs.tab"
     threads: workflow.cores
     shell:
-        "barrnap --threads {threads} {input} > {output}"
+        """
+        mkdir {output[0]}
+        mmseqs createdb {input[0]} {output[0]}/target
+        mmseqs createdb {input[1]} {output[0]}/query
+        mmseqs search \
+            {output[0]}/query \
+            {output[0]}/target \
+            {output[0]}/mmseqs_out temp \
+            --threads {threads} -s 7 # Add sensitivity setting as f string
+        mmseqs convertalis \
+             --format-output 'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen' \
+             {output[0]}/query \
+             {output[0]}/target \
+             {output[0]}/mmseqs_out \
+             {output[1]}
+        """
 
-rule grep_16s:
+# NOTE shell("mmseqs search --search-type 3  was removed becouse --search-type is not a thing anymore
+# --delete-all-output
+rule blast_stage1_search:
     input:
-        "rrna.gff"
+        config['all_bin_seqs_path'],
+        config['generic_16s_data'] # Query
     output:
-        "16S-gff.gff"
-    shell:
-        "grep \"16S\" {input} > {output}"
-
-rule bedtools_get_16s_fasta:
-    input:
-        config['bins_all_seqs_path'],
-        "16S-gff.gff"
-    output:
-        "16S-fasta.fna"
-    shell:
-        "bedtools getfasta -fi {input[0]} -bed {input[1]} -fo {output}"
-
-rule get_16s_headers_barrnap:
-    input:
-        "16S-fasta.fna"
-    output:
-        "16S-id.txt"
-    shell:
-        "grep \">\" {input} | sed 's/>//g' > {output}"
-
-rule samtools_get_16s_fna:
-    input:
-        "16S-fasta.fna",
-        "16S-id.txt"
-    output:
-        "barrnap_fastafile-16S.fna"
-    shell:
-        "xargs samtools faidx {input[0]} < {input[1]} > {output}"
-
-rule make_blast_db:
-    input:
-        "{blastdb}.fna"
-    output:
-        directory("{blastdb}-dbfolder")
+        directory("blast_stage1_db"),
+        "stage1_asvs_blast.tab"
     run:
-       shell("mkdir {wildcards.blastdb}-dbfolder")
-       shell("makeblastdb -dbtype nucl -in {input} -out {wildcards.blastdb}-dbfolder/{wildcards.blastdb}-blastdb")
-
-rule apply_blastn:
-    input:
-        "{blastq}.fna",
-        "{blastdb}-dbfolder"
-    output:
-        "{blastdb}.{blastq}-blastn.txt"
-    shell:
-        "blastn -db {wildcards.blastdb}-dbfolder/{wildcards.blastdb}-blastdb -out {output} -query {input[0]} -outfmt 6 -max_target_seqs 1"
-
-rule get_headers_blast:
-    input:
-        "{blastdb}.{blastq}-blastn.txt"
-    output:
-        "{blastdb}.{blastq}-blast_headers.txt"
-    shell:
-        "awk '{{print $2}}' {input} > {output}"
+        shell("mkdir {output[0]}")
+        shell("makeblastdb -dbtype nucl -in {input[0]} -out blast_db/blast_db")
+        shell("blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} \
+        -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"")
 
 rule pullseq_header_name:
     input:
-        config['bins_all_seqs_path'],
-        "{blastdb}.{blastq}-blast_headers.txt"
+        config['all_bin_seqs_path'],
+        "{level}_asvs_{tool}.tab"
     output:
-        "{blastdb}.{blastq}-blast.fna"
+        "{level}_asvs_{tool}_matches.fna"
+    run:
+        shell("awk '{{print $2}}' {input[1]} > {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
+        shell("/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
+
+rule mmseqs_stage2_search:
+    input:
+       "barrnap_and_mmseqs_asvs.fna", # Target
+       config['asv_seqs_path'] # Query
+    output:
+       directory("mmseqs_stage2_db"),
+       "stage2_asvs_mmseqs.tab"
+    threads: workflow.cores
+    # Add sensitivity seting as f string
     shell:
-        "/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {input[1]}"
+       """
+       mkdir {output[0]}
+       mmseqs createdb {input[0]} {output[0]}/target
+       mmseqs createdb {input[1]} {output[0]}/query
+       mmseqs search \
+           {output[0]}/query \
+           {output[0]}/target \
+           {output[0]}/mmseqs_out \
+           temp \
+           --threads {threads} -s 7
+       mmseqs convertalis \
+           --format-output 'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen' \
+           {output[0]}/query \
+           {output[0]}/target \
+           {output[0]}/mmseqs_out \
+           {output[1]}
+       """
 
+rule blast_stage2_search:
+    input:
+       "barrnap_and_blast_asvs.fna", # Target
+        config['asv_seqs_path'], # Query
+    output:
+        directory("blast_stage2_db"),
+        "stage2_asvs_blast.tab"
+    run:
+        shell("mkdir {output[0]}")
+        shell("makeblastdb -dbtype nucl -in {input[0]} -out blast_db/blast_db")
+        shell("blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} \
+        -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"")
 
-# rule get_silva_db_TEMPORARY:
+rule run_barrnap:
+    input:
+        config['all_bin_seqs_path'] + ".fna"
+    output:
+        "barrnap_fastafile-16S.fna"
+    threads: workflow.cores
+    shell:
+        """
+        barrnap --threads {threads} {input} > rrna.gff
+        grep \"16S\" rrna.gff > 16S-gff.gff
+        bedtools getfasta -fi {input} -bed 16S-gff.gff -fo 16S-fasta.fna
+        grep \">\" 16S-fasta.fna | sed 's/>//g' > 16S-id.txt"
+        xargs samtools faidx 16S-fasta.fna < 16S-id.txt > {output}"
+        """
+
+# rule get_16s_headers_barrnap:
 #     input:
-#         HTTP.remote("https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_SSURef_NR99_tax_silva.fasta.gz",
-#             keep_local=True)
+#         "16S-fasta.fna"
 #     output:
-#         "silva.fasta"
+#         "16S-id.txt"
 #     shell:
-#         "gzip -d {input} > {output}"
+#         "grep \">\" {input} | sed 's/>//g' > {output}"
+#
+# rule samtools_get_16s_fna:
+#     input:
+#         "16S-fasta.fna",
+#         "16S-id.txt"
+#     output:
+#         "barrnap_fastafile-16S.fna"
+#     shell:
+#         "xargs samtools faidx {input[0]} < {input[1]} > {output}"
+
+
+
+
 

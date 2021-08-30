@@ -90,7 +90,7 @@ def read_blast(fasta_path:str, stats_path:str) -> pd.DataFrame:
     # https://www.metagenomics.wiki/tools/blast/blastn-output-format-6
     stats = pd.read_csv(stats_path, header=None, sep='\t', names=[
         "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
-        "qstart", "qend", "sstart", "send", "evalue", "bitscore"])
+        "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen", "slen"])
     data = pd.merge(fasta, stats, right_on='sseqid', left_on='header',
                     how='inner')
     return data
@@ -174,6 +174,21 @@ def combine_blast_barrnap(blast_fasta_path:str, blast_stats_path:str,
     data = combine_fasta(blast, barrnap)
     df_to_fasta(data, out_fasta_path)
 
+
+def filter_to_lenth(in_data):
+    """Filter to 100% length"""
+    data = in_data.copy()
+    return data[data['qlen'] <= data['slen']]
+
+def filter_to_gaps(in_data):
+    """Filter to 0 gaps"""
+    data = in_data.copy()
+    return data[data['gapopen'] <= 0]
+
+def filter_to_mismatch(in_data, mismatch):
+    """Filter to below and given number of mismatches"""
+    data = in_data.copy()
+    return data[data['mismatch'] <= mismatch]
 
 # blast_fasta_path = "../../results/original_approach/blast_fastafile-16S.fna"
 # blast_stats_path = "../../results/original_approach/blast_fastafile-16S.txt"
