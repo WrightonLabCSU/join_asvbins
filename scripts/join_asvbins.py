@@ -17,7 +17,7 @@ FILTER_VALUES = {
 def parse_args():
     parser = argparse.ArgumentParser(description="Extract 16s from bins using "
                                     "BLAST and Barrnap.")
-    parser.add_argument( "-r", "--rule",  type=str, default=None,
+    parser.add_argument( "--snake_rule",  type=str, default="all",
                         help="This script is snakemake under the hood. You"
                         "can run select Snakemake rules with this argument.")
     parser.add_argument("-b", "--bins",  type=str, default=None,
@@ -37,7 +37,7 @@ def parse_args():
     # 0, 1, 2 mismatches
     # 100 % length
 
-    parser.add_argument( "-a", "--asvs",  type=str, default=None,
+    parser.add_argument( "-a", "--asv_seqs",  type=str, default=None,
                         help="The asvs you would like to atach to your bins.")
     parser.add_argument( "-g", "--generic_16s",  type=str, default=None,
                         help="A set of generic_16s files that may be part of"
@@ -164,20 +164,19 @@ def main():
         bins_folder = None
         all_bin_seqs_path = os.path.abspath(args.bins)
 
-    if args.asvs is not None:
-       asv_seqs_path = os.path.abspath(args.asvs)
+    if args.asv_seqs is not None:
+       asv_seqs_path = os.path.abspath(args.asv_seqs)
     else:
         asv_seqs_path = None
-    if args.rule is not None:
-        run_rule = args.rule
+    if args.snake_rule is not None:
+        run_rule = args.snake_rule
     else:
         if asv_seqs_path is not None:
             run_rule = "all"
         else:
             run_rule = "no_asvs"
     tool = 'blast' if args.blast else 'mmseqs'
-
-
+
 
     snakemake_run(bins_folder, all_bin_seqs_path, asv_seqs_path,
                   args.generic_16s, working_dir, tool, args.snake_args,

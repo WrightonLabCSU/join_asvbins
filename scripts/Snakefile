@@ -9,11 +9,11 @@ from asv_to_bins.extract_16s import combine_blast_barrnap
 # This will eventually move the output file to a designated location
 rule all:
     input:
-       f"stage1_asvs_{config['tool']}.tab"
+       f"stage2_asvs_{config['tool']}.tab"
 
 rule no_asvs:
     input:
-       f"stage1_asvs_{config['tool']}.tab"
+       f"barrnap_and_{config['tool']}_asvs.fna"
 
 # rule copy_output_to_place:
 #     input:
@@ -62,7 +62,7 @@ rule mmseqs_stage1_search:
         mkdir {output[0]}
         mmseqs createdb {input[0]} {output[0]}/target
         mmseqs createdb {input[1]} {output[0]}/query
-        mmseqs search \
+        mmseqs search --search-type 3 \
             {output[0]}/query \
             {output[0]}/target \
             {output[0]}/mmseqs_out temp \
@@ -74,8 +74,6 @@ rule mmseqs_stage1_search:
              {output[0]}/mmseqs_out \
              {output[1]}
         """
-
-# NOTE shell("mmseqs search --search-type 3  was removed becouse --search-type is not a thing anymore
 # --delete-all-output
 rule blast_stage1_search:
     input:
@@ -114,7 +112,7 @@ rule mmseqs_stage2_search:
        mkdir {output[0]}
        mmseqs createdb {input[0]} {output[0]}/target
        mmseqs createdb {input[1]} {output[0]}/query
-       mmseqs search \
+       mmseqs search --search-type 3 \
            {output[0]}/query \
            {output[0]}/target \
            {output[0]}/mmseqs_out \
@@ -135,15 +133,17 @@ rule blast_stage2_search:
     output:
         directory("blast_stage2_db"),
         "stage2_asvs_blast.tab"
-    run:
-        shell("mkdir {output[0]}")
-        shell("makeblastdb -dbtype nucl -in {input[0]} -out blast_db/blast_db")
-        shell("blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} \
-        -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"")
+    shell:
+        """
+        mkdir {output[0]}
+        makeblastdb -dbtype nucl -in {input[0]} -out blast_db/blast_db
+        blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} \
+        -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"
+        """
 
 rule run_barrnap:
     input:
-        config['all_bin_seqs_path'] + ".fna"
+        config['all_bin_seqs_path']
     output:
         "barrnap_fastafile-16S.fna"
     threads: workflow.cores

@@ -22,6 +22,7 @@ setup(
     long_description_content_type='text/markdown',  # Optional (see note above)
     python_requires='>=3',
     install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'graphviz'],
+    #TODO add mmseqs
     author="Rory Flynn",
     author_email='Rory.Flynn@colostate.edu',
     url="https://github.com/rmFlynn/16s_to_bins_project",  # this will change
