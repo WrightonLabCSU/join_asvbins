@@ -12,6 +12,8 @@ FILTER_VALUES = {
    "min_length_pct": 1,
    "max_gaps": 1,
    "max_missmatch": 2,
+   "s1_mmseqs_sensitivity": 4,
+   "s2_mmseqs_sensitivity": 4,
 }
 
 def parse_args():
@@ -64,6 +66,18 @@ def parse_args():
                         "folder, the program should make a new folder with "
                         "this name inside the output location. This is "
                         "especially useful for testing.")
+    #TODO
+    parser.add_argument("--s1_mmseqs_sensitivity", type=int,
+                        default=FILTER_VALUES['s1_mmseqs_sensitivity'],
+                        help="This value is pased to mmseqs during the stage 1"
+                        " search as the sensitivity setting. Increasing it"
+                        " could result in more hits at the cost of time")
+    #TODO
+    parser.add_argument("--s2_mmseqs_sensitivity", type=int,
+                        default=FILTER_VALUES['s2_mmseqs_sensitivity'],
+                        help="This value is pased to mmseqs during the stage 2"
+                        " search as the sensitivity setting. Increasing it"
+                        " could result in more hits at the cost of time")
     #TODO
     parser.add_argument("--s1_min_pct_id", type=float,
                         default=FILTER_VALUES['s1_min_pct_id'],
@@ -124,6 +138,8 @@ def snakemake_run(bins_folder:str, all_bin_seqs_path:str,
                   s2_min_pct_id=FILTER_VALUES['s2_min_pct_id'],
                   s1_min_length=FILTER_VALUES['s1_min_length'],
                   s2_min_length=FILTER_VALUES['s2_min_length'],
+                  s1_mmseqs_sensitivity=FILTER_VALUES["s1_mmseqs_sensitivity"],
+                  s2_mmseqs_sensitivity=FILTER_VALUES["s2_mmseqs_sensitivity"],
                   min_length_pct=FILTER_VALUES['min_length_pct'],
                   max_gaps=FILTER_VALUES['max_gaps'],
                   run_rule:str = "all",
@@ -143,6 +159,8 @@ def snakemake_run(bins_folder:str, all_bin_seqs_path:str,
             f" s2_min_pct_id=s2_min_pct_id"
             f" s1_min_length=s1_min_length"
             f" s2_min_length=s2_min_length"
+            f" s1_mmseqs_sensitivity=s1_mmseqs_sensitivity"
+            f" s2_mmseqs_sensitivity=s2_mmseqs_sensitivity"
             f" min_length_pct=min_length_pct"
             f" max_gaps=max_gaps"
             f" {snake_args}"
@@ -187,6 +205,8 @@ def main():
                   s2_min_pct_id=args.s2_min_pct_id,
                   s1_min_length=args.s1_min_length,
                   s2_min_length=args.s2_min_length,
+                  s1_mmseqs_sensitivity=args.s1_mmseqs_sensitivity,
+                  s2_mmseqs_sensitivity=args.s2_mmseqs_sensitivity,
                   min_length_pct=args.min_length_pct,
                   snake_args=args.snake_args, run_rule=run_rule, clean=clean,
                   threads=args.threads)

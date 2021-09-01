@@ -6,6 +6,21 @@ from asv_to_bins.extract_16s import combine_blast_barrnap
 
 # !snakemake combine_input_fa --directory '../results/snakemake_test_2/' --config input_fa_folder=/home/projects/16s_to_bins_project/data/salmonella/ input_fna=test.fna --cores 2
 
+# DONE bins_folder=\'{bins_folder}\'"
+# DONE all_bin_seqs_path=\'{all_bin_seqs_path}\'"
+# DONE asv_seqs_path=\'{asv_seqs_path}\'"
+# DONE generic_16s_data=\'{generic_16s_data}\'"
+# DONE tool=\'{tool}\'"
+# TODO s1_min_pct_id=s1_min_pct_id"
+# TODO s2_min_pct_id=s2_min_pct_id"
+# TODO s1_min_length=s1_min_length"
+# TODO s2_min_length=s2_min_length"
+# DONE s1_mmseqs_sensitivity=s1_mmseqs_sensitivity"
+# DONE s2_mmseqs_sensitivity=s2_mmseqs_sensitivity"
+# TODO min_length_pct=min_length_pct"
+# TODO max_gaps=max_gaps"
+
+
 # This will eventually move the output file to a designated location
 rule all:
     input:
@@ -66,7 +81,7 @@ rule mmseqs_stage1_search:
             {output[0]}/query \
             {output[0]}/target \
             {output[0]}/mmseqs_out temp \
-            --threads {threads} -s 7 # Add sensitivity setting as f string
+            --threads {threads} -s {config['s1_mmseqs_sensitivity']} # Add sensitivity setting as f string
         mmseqs convertalis \
              --format-output 'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen' \
              {output[0]}/query \
@@ -117,7 +132,7 @@ rule mmseqs_stage2_search:
            {output[0]}/target \
            {output[0]}/mmseqs_out \
            temp \
-           --threads {threads} -s 7
+           --threads {threads} -s {config['s2_mmseqs_sensitivity']}
        mmseqs convertalis \
            --format-output 'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen' \
            {output[0]}/query \
