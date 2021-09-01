@@ -112,7 +112,8 @@ def get_snake_path():
     abs_snake_path = os.path.join(os.path.dirname(
         os.path.abspath(__file__)),
         "Snakefile")
-    assert os.path.exists(abs_snake_path), f"Unable to locate the Snakemake workflow file; tried {abs_snake_path}"
+    assert os.path.exists(abs_snake_path), \
+        f"Unable to locate the Snakemake workflow file; tried {abs_snake_path}"
     return abs_snake_path
 
 
@@ -124,31 +125,34 @@ def snakemake_run(bins_folder:str, all_bin_seqs_path:str,
                   s1_min_length=FILTER_VALUES['s1_min_length'],
                   s2_min_length=FILTER_VALUES['s2_min_length'],
                   min_length_pct=FILTER_VALUES['min_length_pct'],
-                  max_gaps=FILTER_VALUES['max_gaps'], run_rule:str = "all",
+                  max_gaps=FILTER_VALUES['max_gaps'],
+                  run_rule:str = "all",
                   max_missmatch=FILTER_VALUES['max_missmatch'],
-                  no_clean=False, snake_args="",
+                  clean=True, snake_args="",
                   threads=1):
-    cmd = (f"snakemake {run_rule}"
-           # TODO add snakemake file option
-           f" --snakefile {get_snake_path()}"
-           f" --directory {working_dir}"
-           " --config"
-               f" bins_folder=\'{bins_folder}\'"
-               f" all_bin_seqs_path=\'{all_bin_seqs_path}\'"
-               f" asv_seqs_path=\'{asv_seqs_path}\'"
-               f" generic_16s_data=\'{generic_16s_data}\'"
-               f" tool=\'{tool}\'"
-               f" s1_min_pct_id=s1_min_pct_id"
-               f" s2_min_pct_id=s2_min_pct_id"
-               f" s1_min_length=s1_min_length"
-               f" s2_min_length=s2_min_length"
-               f" min_length_pct=min_length_pct"
-               f" max_gaps=max_gaps"
-           f" --cores {threads}"
-           f"{'' if no_clean else ' --delete-all-output'}"
-           f" {snake_args}"
-           )
-    subprocess.run(cmd, check=True, shell=True)
+    key_dag_args = ( # These arguments may affect the DAG so they are separate
+        f" --snakefile {get_snake_path()}"
+        f" --directory {working_dir}"
+        " --config"
+            f" bins_folder=\'{bins_folder}\'"
+            f" all_bin_seqs_path=\'{all_bin_seqs_path}\'"
+            f" asv_seqs_path=\'{asv_seqs_path}\'"
+            f" generic_16s_data=\'{generic_16s_data}\'"
+            f" tool=\'{tool}\'"
+            f" s1_min_pct_id=s1_min_pct_id"
+            f" s2_min_pct_id=s2_min_pct_id"
+            f" s1_min_length=s1_min_length"
+            f" s2_min_length=s2_min_length"
+            f" min_length_pct=min_length_pct"
+            f" max_gaps=max_gaps"
+            f" {snake_args}"
+    )
+    if os.path.exists(working_dir) and clean:
+        subprocess.run(f"snakemake --delete-all-output {key_dag_args}",
+                       check=True, shell=True)
+
+    subprocess.run(f"snakemake {run_rule} --cores {threads} {key_dag_args}",
+                   check=True, shell=True)
 
 
 def main():
@@ -165,7 +169,7 @@ def main():
         all_bin_seqs_path = os.path.abspath(args.bins)
 
     if args.asv_seqs is not None:
-       asv_seqs_path = os.path.abspath(args.asv_seqs)
+        asv_seqs_path = os.path.abspath(args.asv_seqs)
     else:
         asv_seqs_path = None
     if args.snake_rule is not None:
@@ -176,11 +180,16 @@ def main():
         else:
             run_rule = "no_asvs"
     tool = 'blast' if args.blast else 'mmseqs'
-
-
+    clean = not args.no_clean
     snakemake_run(bins_folder, all_bin_seqs_path, asv_seqs_path,
-                  args.generic_16s, working_dir, tool, args.snake_args,
-                  run_rule=run_rule, no_clean=args.no_clean,  threads=args.threads)
+                  args.generic_16s, working_dir, tool,
+                  s1_min_pct_id=args.s1_min_pct_id,
+                  s2_min_pct_id=args.s2_min_pct_id,
+                  s1_min_length=args.s1_min_length,
+                  s2_min_length=args.s2_min_length,
+                  min_length_pct=args.min_length_pct,
+                  snake_args=args.snake_args, run_rule=run_rule, clean=clean,
+                  threads=args.threads)
 
 
 if __name__ == '__main__':
