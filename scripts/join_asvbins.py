@@ -39,18 +39,22 @@ def parse_args():
                         " this tool")
     # TODO Alow for QIIME format
     parser.add_argument("-o", "--output", type=str, default=None,
-                        help="The folder where you would like the resulting "
-                        "files and output to be stored")
+                        help="The folder where you would like the resulting"
+                        " files and output to be stored")
     # TODO add these features:
     #
     # Exact matches
     # No gaps
     # 0, 1, 2 mismatches
     # 100 % length
-
+    parser.add_argument( "--print_dag",  type=str, default=None,
+                        help="Print the DAG that is being used to run this"
+                        " pipline Note that your choice of args will result"
+                        " in a different DAG.")
     parser.add_argument( "-a", "--asv_seqs",  type=str, default=None,
                         help="The asvs you would like to atach to your bins.")
-    parser.add_argument("--generic_16s",  type=str, default=FILTER_VALUES['asv_seqs'],
+    parser.add_argument("--generic_16s",  type=str,
+                        default=FILTER_VALUES['asv_seqs'],
                         help="A set of generic_16s files that may be part of"
                         " your bins.")
     # TODO If necessary make this optional so it can connect to other command
@@ -147,7 +151,7 @@ def snakemake_run(bins_folder:str, all_bin_seqs_path:str,
                   max_gaps=FILTER_VALUES['max_gaps'],
                   run_rule:str = "all",
                   max_missmatch=FILTER_VALUES['max_missmatch'],
-                  clean=True, snake_args="",
+                  clean=True, snake_args="", print_dag:str=None
                   threads=1):
     key_dag_args = ( # These arguments may affect the DAG so they are separate
         f" --snakefile {get_package_path('Snakefile')}"
@@ -168,6 +172,10 @@ def snakemake_run(bins_folder:str, all_bin_seqs_path:str,
             f" max_gaps=max_gaps"
             f" {snake_args}"
     )
+    if print_dag is not None:
+        subprocess.run(f"snakemake {key_dag_args} --forceall --dag | dot -Tpdf > {print_dag}.pdf",
+                       check=True, shell=True)
+        return
     if os.path.exists(working_dir) and clean:
         subprocess.run(f"snakemake --delete-all-output {key_dag_args}",
                        check=True, shell=True)
@@ -211,7 +219,7 @@ def main():
                   s2_mmseqs_sensitivity=args.s2_mmseqs_sensitivity,
                   min_length_pct=args.min_length_pct,
                   snake_args=args.snake_args, run_rule=run_rule, clean=clean,
-                  threads=args.threads)
+                  threads=args.threads, print_dag=args.print_dag)
 
 
 if __name__ == '__main__':
