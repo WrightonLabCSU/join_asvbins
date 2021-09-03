@@ -7,6 +7,7 @@ from skbio import write as write_fa
 from skbio import read as read_fa
 from skbio import Sequence
 
+
 def fasta_to_df(path):
     df = pd.DataFrame({i.metadata['id']:[i.values]
                        for i in read_fa(path, format='fasta')})

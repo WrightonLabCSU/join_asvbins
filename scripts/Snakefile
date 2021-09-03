@@ -162,8 +162,8 @@ rule run_barrnap:
         barrnap --threads {threads} {input} > rrna.gff
         grep \"16S\" rrna.gff > 16S-gff.gff
         bedtools getfasta -fi {input} -bed 16S-gff.gff -fo 16S-fasta.fna
-        grep \">\" 16S-fasta.fna | sed 's/>//g' > 16S-id.txt"
-        xargs samtools faidx 16S-fasta.fna < 16S-id.txt > {output}"
+        grep \">\" 16S-fasta.fna | sed 's/>//g' > 16S-id.txt
+        xargs samtools faidx 16S-fasta.fna < 16S-id.txt > {output}
         """
 
 # rule get_16s_headers_barrnap:
