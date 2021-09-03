@@ -25,6 +25,13 @@ def df_to_fasta(df:pd.DataFrame, path:str):
     write_fa(seqs, 'fasta', path)
 
 
+
+def filter_fasta_from_headers(in_fasta_path, out_fasta_path, headers,
+                      report_prath:str=None, show_report=False):
+    headers = set(headers)
+    write_fa((seq for seq in read_fa(in_fasta_path, format='fasta') if seq.metadata['id'] in headers),
+             'fasta', out_fasta_path)
+
 def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
     data.sort_values('start')
     joined = data.iloc[0]
@@ -84,7 +91,7 @@ def read_and_process_barrnap(fasta_path):
     return data
 
 
-def read_blast(fasta_path:str, stats_path:str) -> pd.DataFrame:
+def read_mbstat(fasta_path:str, stats_path:str) -> pd.DataFrame:
     fasta = fasta_to_df(fasta_path)
     # get headers here:
     # https://www.metagenomics.wiki/tools/blast/blastn-output-format-6
@@ -96,25 +103,25 @@ def read_blast(fasta_path:str, stats_path:str) -> pd.DataFrame:
     return data
 
 
-def read_and_process_blast(fasta_path:str, stats_path:str, headers=None):
+def read_and_process_mbstats(fasta_path:str, stats_path:str, headers=None):
     # Note get stats on balst evalue and lenther so that  we get cutofs
     # Barnnap
-    data = read_blast(fasta_path, stats_path)
-    data = process_blast(data, headers=headers)
+    data = read_mbstats(fasta_path, stats_path)
+    data = process_mbstats(data, headers=headers)
     return data
 
 
-def get_blast_dups(data):
-    """Check blast data for dups"""
+def get_mbstats_dups(data):
+    """Check mmseqs or blast stats data for dups"""
     dups = data[data['header'].duplicated(keep=False)]
     dups = dups[[i for i in dups.columns
                  if i not in ['seq', 'sseqid', 'qseqid']]]
     return dups
 
 
-def process_blast(data:pd.DataFrame, headers=None) -> pd.DataFrame:
-    get_blast_dups(data)
-    # Remove blast data dups keeping the longest string
+def process_mbstats(data:pd.DataFrame, headers=None) -> pd.DataFrame:
+    get_mbstats_dups(data)
+    # Remove mbstats data dups keeping the longest string
     data = data.sort_values('length', ascending=False).\
         drop_duplicates('header')
     # Keep only elements of blast_fasta_list that are in headers object
@@ -128,30 +135,30 @@ def process_blast(data:pd.DataFrame, headers=None) -> pd.DataFrame:
     return data
 
 
-def combine_fasta(blast:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
+def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
     barrnap = barrnap[['header', 'seq']]
-    blast = blast[['header', 'seq']]
-    blast['blast'] = True
+    mbstats = mbstats[['header', 'seq']]
+    mbstats['mbstats'] = True
     barrnap['barrnap'] = True
     # NOTE we have a choice for merge, we can convert the arays to tuples or
     # we can fix the problem after. I opt for option 2, it gives more control.
-    data = pd.merge(barrnap, blast, on='header', how='outer')
-    data[['blast', 'barrnap']] = data[['blast', 'barrnap']].fillna(False)
+    data = pd.merge(barrnap, mbstats, on='header', how='outer')
+    data[['mbstats', 'barrnap']] = data[['mbstats', 'barrnap']].fillna(False)
     data.rename(columns={'seq_x': 'seq_bar', 'seq_y': 'seq_bla'},
                 inplace=True)
     data['seq'] = data.apply(lambda x:
-                    x['seq_bar'] if x['barrnap'] and not x['blast']
-               else x['seq_bla'] if x['blast'] and not x['barrnap']
+                    x['seq_bar'] if x['barrnap'] and not x['mbstats']
+               else x['seq_bla'] if x['mbstats'] and not x['barrnap']
                else x['seq_bar'] if np.array_equal(x['seq_bar'], x['seq_bla'])
                else raise_(
-                   Exception("Non equal duplicates in barrnap, and blast")),
+                   Exception("Non equal duplicates in barrnap, and mbstats")),
         axis=1)
     data[['seq', 'note']] = data.apply(
         lambda x:
                     (x['seq_bar'], 'Barnnap')
-               if x['barrnap'] and not x['blast']
+               if x['barrnap'] and not x['mbstats']
                else (x['seq_bla'], 'BLAST')
-               if x['blast'] and not x['barrnap']
+               if x['mbstats'] and not x['barrnap']
                else (x['seq_bar'], 'Barnnap+BLAST')
                if (len(x['seq_bar']) >= len(x['seq_bla']))
                else (x['seq_bar'], 'BLAST+Barnnap'),
@@ -161,19 +168,89 @@ def combine_fasta(blast:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
           " There are %i Sequences found by BLAST.\n"
           " There are %i Sequences found by both Barrnap and BLAST.\n" \
           % (sum(data['barrnap']),
-             sum(data['blast']),
-             sum(data['blast'] & data['barrnap']))
+             sum(data['mbstats']),
+             sum(data['mbstats'] & data['barrnap']))
           )
     return data[['header', 'seq', 'note']]
 
 
-def combine_blast_barrnap(blast_fasta_path:str, blast_stats_path:str,
+def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                           barrnap_fasta_path:str, out_fasta_path:str):
-    blast = read_and_process_blast(blast_fasta_path, blast_stats_path)
+    mbstats = read_and_process_bmstats(mbstats_fasta_path, mbstats_stats_path)
     barrnap = read_and_process_barrnap(barrnap_fasta_path)
-    data = combine_fasta(blast, barrnap)
+    data = combine_fasta(mbstats, barrnap)
     df_to_fasta(data, out_fasta_path)
 
+
+
+
+mbstats = read_and_process_mbstats("../results/salmonella_aug31/stage1_asvs_mmseqs_matches.fna",
+                               "../results/salmonella_aug31/stage1_asvs_mmseqs.tab")
+
+stats = pd.read_csv("../results/salmonella_aug31/stage1_asvs_mmseqs.tab",
+                    header=None, sep='\t',
+                    names=[
+        "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
+        "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen",
+                        "slen"])
+from time import time
+from io import StringIO
+s = time()
+pd.read_csv("./test.tab",
+                    header=None, sep='\t',
+                    names=[
+        "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
+        "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen",
+                        "slen"])
+clock = time() - s
+
+
+stats =
+filter_data_(stats, min_length=80)
+# DONE s1_min_pct_id=s1_min_pct_id"
+# DONE s2_min_pct_id=s2_min_pct_id"
+# DONE s1_min_length=s1_min_length"
+# DONE s2_min_length=s2_min_length"
+# DONE max_missmatch=max_missmatch"
+# DONE min_length_pct=min_length_pct"
+# DONE max_gaps=max_gaps"
+# TODO formalize these tests
+#     mbstats.loc['gapopen', 1]
+#     mbstats.loc[['gapopen', 212129]]
+#     mbstats.loc[212129, 'gapopen'] = 1
+#     filter_data_set(mbstats)
+#     filter_data_set(mbstats, max_gaps=1)
+#     mbstats['mismatch']
+#     filter_data_set(mbstats, max_missmatch=7)
+#     mbstats['length']
+#     filter_data_set(mbstats, min_length=49)
+#     mbstats['sseqid']
+#     mbstats['length'] / mbstats['slen']
+#     filter_data_set(mbstats, min_length_pct=1)
+#     mbstats['pident']
+#     filter_data_set(mbstats, min_pct_id=84)
+#     filter_data_set(mbstats, min_pct_id=84, max_gaps=0)
+
+def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
+                    min_length_pct:float=None, max_gaps:int=None,
+                    max_missmatch:int=None):
+
+    # NOTE For perfect matches the Alignment Length equals the DB allele Length so the percent should be length/slen.
+    return data[
+        data.apply(
+        lambda x:
+            ((x['gapopen'] <= max_gaps)
+             if max_gaps is not None else True) and
+            ((x['mismatch'] <= max_missmatch)
+             if max_missmatch is not None else True) and
+            ((x['length'] >= min_length)
+             if min_length is not None else True) and
+            ((x['pident'] >= min_pct_id)
+             if min_pct_id is not None else True) and
+            ((((x['length'] / x['slen']) * 100) >= min_length_pct)
+             if min_length_pct is not None else True),
+        axis=1)
+        ]
 
 def filter_to_lenth(in_data):
     """Filter to 100% length"""
@@ -188,7 +265,7 @@ def filter_to_gaps(in_data):
 def filter_to_mismatch(in_data, mismatch):
     """Filter to below and given number of mismatches"""
     data = in_data.copy()
-    return data[data['mismatch'] <= mismatch]
+    return data[data <= mismatch]
 
 # blast_fasta_path = "../../results/original_approach/blast_fastafile-16S.fna"
 # blast_stats_path = "../../results/original_approach/blast_fastafile-16S.txt"

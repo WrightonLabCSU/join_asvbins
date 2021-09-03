@@ -2,7 +2,7 @@
 import os
 import glob
 import pathlib
-from asv_to_bins.extract_16s import combine_blast_barrnap
+from asv_to_bins.extract_16s import combine_blast_barrnap,
 
 # !snakemake combine_input_fa --directory '../results/snakemake_test_2/' --config input_fa_folder=/home/projects/16s_to_bins_project/data/salmonella/ input_fna=test.fna --cores 2
 
@@ -29,14 +29,6 @@ rule all:
 rule no_asvs:
     input:
        f"barrnap_and_{config['tool']}_asvs.fna"
-
-# rule copy_output_to_place:
-#     input:
-#         "combined_16s_from_bins.asv_seqs-mmseqs.fna" if config['mmseqs'] else "combined_16s_from_bins.asv_seqs-blast.fna"
-#     output:
-#         "all_asv_results.fna"
-#     shell:
-#         "cp {input} {output}"
 
 rule combine_barrnap_with_other: # where other is blast or mmseqs
     input:
@@ -111,7 +103,10 @@ rule pullseq_header_name:
         "{level}_asvs_{tool}_matches.fna"
     run:
         shell("awk '{{print $2}}' {input[1]} > {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
-        shell("/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
+        headers = pd.read_csv("{wildcards.level}_asvs_{wildcards.tool}_headers.txt",
+                           sep='\n', header=None, names=["head"])["head"].values
+        filter_fasta_from_headers("{input[0]}", "{output}", headers)
+        # shell("/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
 
 rule mmseqs_stage2_search:
     input:
