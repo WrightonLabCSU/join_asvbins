@@ -123,7 +123,7 @@ rule mmseqs_stage2_search:
     run:
        shell("mkdir {output[0]}")
        shell("mmseqs createdb {input[0]} {output[0]}/target")
-       ghell("mmseqs createdb {input[1]} {output[0]}/query")
+       shell("mmseqs createdb {input[1]} {output[0]}/query")
        shell("mmseqs search --search-type 3"
              " {output[0]}/query"
              " {output[0]}/target"
