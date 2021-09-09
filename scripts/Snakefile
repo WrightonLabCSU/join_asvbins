@@ -2,14 +2,16 @@
 import os
 import glob
 import pathlib
-from asv_to_bins.extract_16s import combine_blast_barrnap,
+import pandas as pd
+from asv_to_bins.extract_16s import combine_mbstats_barrnap, filter_fasta_from_headers
 
+LOCALY_COMBINED_BINS = "all_bins_combined"
 # !snakemake combine_input_fa --directory '../results/snakemake_test_2/' --config input_fa_folder=/home/projects/16s_to_bins_project/data/salmonella/ input_fna=test.fna --cores 2
 
 # DONE bins_folder=\'{bins_folder}\'"
 # DONE all_bin_seqs_path=\'{all_bin_seqs_path}\'"
 # DONE asv_seqs_path=\'{asv_seqs_path}\'"
-# DONE generic_16s_data=\'{generic_16s_data}\'"
+# DONE generic_16s=\'{generic_16s}\'"
 # DONE tool=\'{tool}\'"
 # TODO s1_min_pct_id=s1_min_pct_id"
 # TODO s2_min_pct_id=s2_min_pct_id"
@@ -38,19 +40,19 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
     output:
         out_fasta_path = "barrnap_and_{tool}_asvs.fna"
     run:
-        combine_blast_barrnap(input['other_fasta_path'], input['other_stats_path'],
+        combine_mbstats_barrnap(input['other_fasta_path'], input['other_stats_path'],
                 input['barrnap_fasta_path'], output['out_fasta_path'])
 
-if config['bins_folder'] is not None:
-        all_input_bins = glob.glob(os.path.join(config['bins_folder'], "*.fa*"))
+
+
+path_to_combined_bins = LOCALY_COMBINED_BINS if config['all_bin_seqs_path'] == 'None' else config['all_bin_seqs_path']
 rule combine_input_fa:
     input:
-        all_input_bins
+        "NA" if config['bins_folder'] == 'None' else glob.glob(os.path.join(config['bins_folder'], "*.fa*"))
     output:
-        config['all_bin_seqs_path']
+        LOCALY_COMBINED_BINS
     run:
-       shell("touch {output}")
-       for i in all_input_bins:
+       for i in input:
            if i.endswith(".fa"):
                shell("cat {i} >> {output}")
            elif i.endswith('.fa.gz'):
@@ -58,55 +60,56 @@ rule combine_input_fa:
 
 rule mmseqs_stage1_search:
     input:
-        config['all_bin_seqs_path'],
-        config['generic_16s_data'] # Query
+        path_to_combined_bins,
+        config['generic_16s'] # Query
     output:
         directory("mmseqs_stage1_db"),
         "stage1_asvs_mmseqs.tab"
     threads: workflow.cores
-    shell:
-        """
-        mkdir {output[0]}
-        mmseqs createdb {input[0]} {output[0]}/target
-        mmseqs createdb {input[1]} {output[0]}/query
-        mmseqs search --search-type 3 \
-            {output[0]}/query \
-            {output[0]}/target \
-            {output[0]}/mmseqs_out temp \
-            --threads {threads} -s {config['s1_mmseqs_sensitivity']} # Add sensitivity setting as f string
-        mmseqs convertalis \
-             --format-output 'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen' \
-             {output[0]}/query \
-             {output[0]}/target \
-             {output[0]}/mmseqs_out \
-             {output[1]}
-        """
-# --delete-all-output
+    run:
+       shell("mkdir {output[0]}")
+       shell("mmseqs createdb {input[0]} {output[0]}/target")
+       shell("mmseqs createdb {input[1]} {output[0]}/query")
+       shell("mmseqs search --search-type 3"
+             " {output[0]}/query"
+             " {output[0]}/target"
+             " {output[0]}/mmseqs_out"
+             " temp"
+             " --threads {threads}"
+            f" -s {config['s2_mmseqs_sensitivity']}"
+             )
+       #   f" {config['s1_mmseqs_sensitivity']} \n" # Add sensitivity setting as f string
+       shell("mmseqs convertalis "
+             " --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\'"
+             " {output[0]}/query "
+             " {output[0]}/target "
+             " {output[0]}/mmseqs_out "
+             " {output[1]}")
+
 rule blast_stage1_search:
     input:
-        config['all_bin_seqs_path'],
-        config['generic_16s_data'] # Query
+        path_to_combined_bins,
+        config['generic_16s'] # Query
     output:
         directory("blast_stage1_db"),
         "stage1_asvs_blast.tab"
     run:
-        shell("mkdir {output[0]}")
-        shell("makeblastdb -dbtype nucl -in {input[0]} -out blast_db/blast_db")
-        shell("blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} \
-        -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"")
+       shell("mkdir {output[0]}")
+       shell("makeblastdb -dbtype nucl -in {input[0]} -out {output[0]}/blast_db")
+       shell("blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"")
 
 rule pullseq_header_name:
     input:
-        config['all_bin_seqs_path'],
+        path_to_combined_bins,
         "{level}_asvs_{tool}.tab"
     output:
         "{level}_asvs_{tool}_matches.fna"
     run:
-        shell("awk '{{print $2}}' {input[1]} > {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
-        headers = pd.read_csv("{wildcards.level}_asvs_{wildcards.tool}_headers.txt",
-                           sep='\n', header=None, names=["head"])["head"].values
-        filter_fasta_from_headers("{input[0]}", "{output}", headers)
-        # shell("/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
+       shell("awk '{{print $2}}' {input[1]} > {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
+       headers = pd.read_csv(f"{wildcards.level}_asvs_{wildcards.tool}_headers.txt",
+                          sep='\n', header=None, names=["head"])["head"].values
+       filter_fasta_from_headers(f"{input[0]}", f"{output}", headers)
+       # shell("/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
 
 rule mmseqs_stage2_search:
     input:
@@ -117,24 +120,24 @@ rule mmseqs_stage2_search:
        "stage2_asvs_mmseqs.tab"
     threads: workflow.cores
     # Add sensitivity seting as f string
-    shell:
-       """
-       mkdir {output[0]}
-       mmseqs createdb {input[0]} {output[0]}/target
-       mmseqs createdb {input[1]} {output[0]}/query
-       mmseqs search --search-type 3 \
-           {output[0]}/query \
-           {output[0]}/target \
-           {output[0]}/mmseqs_out \
-           temp \
-           --threads {threads} -s {config['s2_mmseqs_sensitivity']}
-       mmseqs convertalis \
-           --format-output 'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen' \
-           {output[0]}/query \
-           {output[0]}/target \
-           {output[0]}/mmseqs_out \
-           {output[1]}
-       """
+    run:
+       shell("mkdir {output[0]}")
+       shell("mmseqs createdb {input[0]} {output[0]}/target")
+       ghell("mmseqs createdb {input[1]} {output[0]}/query")
+       shell("mmseqs search --search-type 3"
+             " {output[0]}/query"
+             " {output[0]}/target"
+             " {output[0]}/mmseqs_out"
+             " temp"
+            f" -s {config['s2_mmseqs_sensitivity']}"
+             )
+       #   f" {config['s1_mmseqs_sensitivity']} \n" # Add sensitivity setting as f string
+       shell("mmseqs convertalis "
+             " --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\'"
+             " {output[0]}/query "
+             " {output[0]}/target "
+             " {output[0]}/mmseqs_out "
+             " {output[1]}")
 
 rule blast_stage2_search:
     input:
@@ -146,14 +149,14 @@ rule blast_stage2_search:
     shell:
         """
         mkdir {output[0]}
-        makeblastdb -dbtype nucl -in {input[0]} -out blast_db/blast_db
+        makeblastdb -dbtype nucl -in {input[0]} -out {output[0]}/blast_db
         blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} \
         -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"
         """
 
 rule run_barrnap:
     input:
-        config['all_bin_seqs_path']
+        path_to_combined_bins
     output:
         "barrnap_fastafile-16S.fna"
     threads: workflow.cores

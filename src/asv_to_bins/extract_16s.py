@@ -91,14 +91,17 @@ def read_and_process_barrnap(fasta_path):
     data = process_barrnap(data)
     return data
 
-
-def read_mbstat(fasta_path:str, stats_path:str) -> pd.DataFrame:
-    fasta = fasta_to_df(fasta_path)
-    # get headers here:
-    # https://www.metagenomics.wiki/tools/blast/blastn-output-format-6
+def read_mbstats(stats_path:str) -> pd.DataFrame:
     stats = pd.read_csv(stats_path, header=None, sep='\t', names=[
         "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
         "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen", "slen"])
+    return stats
+
+def read_mbstats_and_fasta(fasta_path:str, stats_path:str) -> pd.DataFrame:
+    fasta = fasta_to_df(fasta_path)
+    # get headers here:
+    # https://www.metagenomics.wiki/tools/blast/blastn-output-format-6
+    stats = read_mbstats(stats_path)
     data = pd.merge(fasta, stats, right_on='sseqid', left_on='header',
                     how='inner')
     return data
@@ -107,28 +110,29 @@ def read_mbstat(fasta_path:str, stats_path:str) -> pd.DataFrame:
 def read_and_process_mbstats(fasta_path:str, stats_path:str, headers=None):
     # Note get stats on balst evalue and lenther so that  we get cutofs
     # Barnnap
-    data = read_mbstats(fasta_path, stats_path)
+    data = read_mbstats_and_fasta(fasta_path, stats_path)
     data = process_mbstats(data, headers=headers)
     return data
 
 
 def get_mbstats_dups(data):
     """Check mmseqs or blast stats data for dups"""
-    dups = data[data['header'].duplicated(keep=False)]
+    dups = data[data['sseqid'].duplicated(keep=False)]
     dups = dups[[i for i in dups.columns
                  if i not in ['seq', 'sseqid', 'qseqid']]]
     return dups
 
 
 def process_mbstats(data:pd.DataFrame, headers=None) -> pd.DataFrame:
-    get_mbstats_dups(data)
+    # TODO you may want to use this again
+    # get_mbstats_dups(data)
     # Remove mbstats data dups keeping the longest string
     data = data.sort_values('length', ascending=False).\
-        drop_duplicates('header')
+        drop_duplicates('sseqid')
     # Keep only elements of blast_fasta_list that are in headers object
     if headers is not None:
         data = pd.merge(data, pd.DataFrame({
-            'header': list(headers)}), on='header')
+            'sseqid': list(headers)}), on='sseqid')
     data['seq'] = data.apply(
         lambda x: x["seq"][x["sstart"] - 1:x["send"]]
         if x["sstart"] < x["send"]
@@ -177,7 +181,7 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
 
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                           barrnap_fasta_path:str, out_fasta_path:str):
-    mbstats = read_and_process_bmstats(mbstats_fasta_path, mbstats_stats_path)
+    mbstats = read_and_process_mbstats(mbstats_fasta_path, mbstats_stats_path)
     barrnap = read_and_process_barrnap(barrnap_fasta_path)
     data = combine_fasta(mbstats, barrnap)
     df_to_fasta(data, out_fasta_path)
@@ -185,29 +189,6 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
 
 
 
-mbstats = read_and_process_mbstats("../results/salmonella_aug31/stage1_asvs_mmseqs_matches.fna",
-                               "../results/salmonella_aug31/stage1_asvs_mmseqs.tab")
-
-stats = pd.read_csv("../results/salmonella_aug31/stage1_asvs_mmseqs.tab",
-                    header=None, sep='\t',
-                    names=[
-        "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
-        "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen",
-                        "slen"])
-from time import time
-from io import StringIO
-s = time()
-pd.read_csv("./test.tab",
-                    header=None, sep='\t',
-                    names=[
-        "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
-        "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen",
-                        "slen"])
-clock = time() - s
-
-
-stats =
-filter_data_(stats, min_length=80)
 # DONE s1_min_pct_id=s1_min_pct_id"
 # DONE s2_min_pct_id=s2_min_pct_id"
 # DONE s1_min_length=s1_min_length"

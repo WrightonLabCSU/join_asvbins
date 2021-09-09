@@ -1,7 +1,7 @@
 import os
 import subprocess
 import argparse
-from asv_to_bins.extract_16s import combine_blast_barrnap
+from asv_to_bins.extract_16s import combine_mbstats_barrnap
 
 def get_package_path(local_path):
     abs_snake_path = os.path.join(os.path.dirname(
@@ -11,9 +11,7 @@ def get_package_path(local_path):
         f"Unable to locate the Snakemake workflow file; tried {abs_snake_path}"
     return abs_snake_path
 
-NAME_FOR_COMBINED_BINS = "combined_bins.fna"
 FILTER_VALUES = {
-   "asv_seqs": get_package_path("data/silva_clusterd_95pct_all_seqs.fasta"),
    "s1_min_pct_id": None,
    "s2_min_pct_id": 0.97,
    "s1_min_length": 100,
@@ -23,6 +21,7 @@ FILTER_VALUES = {
    "max_missmatch": 2,
    "s1_mmseqs_sensitivity": 4,
    "s2_mmseqs_sensitivity": 4,
+   "generic_16s": get_package_path("data/silva_clusterd_95pct_all_seqs.fasta"),
 }
 
 def parse_args():
@@ -54,7 +53,7 @@ def parse_args():
     parser.add_argument( "-a", "--asv_seqs",  type=str, default=None,
                         help="The asvs you would like to atach to your bins.")
     parser.add_argument("--generic_16s",  type=str,
-                        default=FILTER_VALUES['asv_seqs'],
+                        default=FILTER_VALUES['generic_16s'],
                         help="A set of generic_16s files that may be part of"
                         " your bins.")
     # TODO If necessary make this optional so it can connect to other command
@@ -140,7 +139,7 @@ def parse_args():
 def snakemake_run(bins_folder:str, all_bin_seqs_path:str,
                   asv_seqs_path:str,
                   working_dir, tool='mmseqs',
-                  generic_16s_data=FILTER_VALUES['asv_seqs'],
+                  generic_16s=FILTER_VALUES['generic_16s'],
                   s1_min_pct_id=FILTER_VALUES['s1_min_pct_id'],
                   s2_min_pct_id=FILTER_VALUES['s2_min_pct_id'],
                   s1_min_length=FILTER_VALUES['s1_min_length'],
@@ -151,33 +150,33 @@ def snakemake_run(bins_folder:str, all_bin_seqs_path:str,
                   max_gaps=FILTER_VALUES['max_gaps'],
                   run_rule:str = "all",
                   max_missmatch=FILTER_VALUES['max_missmatch'],
-                  clean=True, snake_args="", print_dag:str=None
+                  clean=True, snake_args="", print_dag:str=None,
                   threads=1):
     key_dag_args = ( # These arguments may affect the DAG so they are separate
         f" --snakefile {get_package_path('Snakefile')}"
         f" --directory {working_dir}"
         " --config"
-            f" bins_folder=\'{bins_folder}\'"
-            f" all_bin_seqs_path=\'{all_bin_seqs_path}\'"
-            f" asv_seqs_path=\'{asv_seqs_path}\'"
-            f" generic_16s_data=\'{generic_16s_data}\'"
-            f" tool=\'{tool}\'"
-            f" s1_min_pct_id=s1_min_pct_id"
-            f" s2_min_pct_id=s2_min_pct_id"
-            f" s1_min_length=s1_min_length"
-            f" s2_min_length=s2_min_length"
-            f" s1_mmseqs_sensitivity=s1_mmseqs_sensitivity"
-            f" s2_mmseqs_sensitivity=s2_mmseqs_sensitivity"
-            f" min_length_pct=min_length_pct"
-            f" max_gaps=max_gaps"
-            f" {snake_args}"
+        f" bins_folder=\'{bins_folder}\'"
+        f" all_bin_seqs_path=\'{all_bin_seqs_path}\'"
+        f" asv_seqs_path=\'{asv_seqs_path}\'"
+        f" generic_16s=\'{generic_16s}\'"
+        f" tool=\'{tool}\'"
+        f" s1_min_pct_id={s1_min_pct_id}"
+        f" s2_min_pct_id={s2_min_pct_id}"
+        f" s1_min_length={s1_min_length}"
+        f" s2_min_length={s2_min_length}"
+        f" s1_mmseqs_sensitivity={s1_mmseqs_sensitivity}"
+        f" s2_mmseqs_sensitivity={s2_mmseqs_sensitivity}"
+        f" min_length_pct={min_length_pct}"
+        f" max_gaps={max_gaps}"
+        f" {snake_args}"
     )
     if print_dag is not None:
         subprocess.run(f"snakemake {key_dag_args} --forceall --dag | dot -Tpdf > {print_dag}.pdf",
                        check=True, shell=True)
         return
     if os.path.exists(working_dir) and clean:
-        subprocess.run(f"snakemake --delete-all-output {key_dag_args}",
+        subprocess.run(f"snakemake --delete-all-output --cores {threads} {key_dag_args}",
                        check=True, shell=True)
 
     subprocess.run(f"snakemake {run_rule} --cores {threads} {key_dag_args}",
@@ -191,7 +190,7 @@ def main():
         working_dir = os.path.join(working_dir, args.name)
     if os.path.isdir(args.bins): # this is a dir of fa files
         bins_folder = os.path.abspath(args.bins)
-        all_bin_seqs_path = NAME_FOR_COMBINED_BINS
+        all_bin_seqs_path = None
     else:
         bins_folder = None
         all_bin_seqs_path = os.path.abspath(args.bins)
@@ -210,7 +209,7 @@ def main():
     tool = 'blast' if args.blast else 'mmseqs'
     clean = not args.no_clean
     snakemake_run(bins_folder, all_bin_seqs_path, asv_seqs_path, working_dir, tool,
-                  generic_16s_data=args.generic_16s_data,
+                  generic_16s=args.generic_16s,
                   s1_min_pct_id=args.s1_min_pct_id,
                   s2_min_pct_id=args.s2_min_pct_id,
                   s1_min_length=args.s1_min_length,

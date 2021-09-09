@@ -21,7 +21,8 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',  # Optional (see note above)
     python_requires='>=3',
-    install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'graphviz'],
+    # install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'graphviz', 'mmseqs2'],
+    install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake'],
     #TODO add mmseqs
     author="Rory Flynn",
     author_email='Rory.Flynn@colostate.edu',
