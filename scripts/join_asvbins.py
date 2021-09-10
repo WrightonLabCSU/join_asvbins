@@ -1,3 +1,4 @@
+"""This is the main entry point of the program"""
 import os
 import subprocess
 import argparse
@@ -12,6 +13,7 @@ def get_package_path(local_path):
     return abs_snake_path
 
 FILTER_VALUES = {
+   "asv_seqs": get_package_path("data/silva_clusterd_95pct_all_seqs.fasta"),
    "s1_min_pct_id": None,
    "s2_min_pct_id": 0.97,
    "s1_min_length": 100,
