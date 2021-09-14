@@ -6,33 +6,20 @@ import pandas as pd
 from asv_to_bins.extract_16s import combine_mbstats_barrnap, filter_fasta_from_headers
 
 LOCALY_COMBINED_BINS = "all_bins_combined"
-# !snakemake combine_input_fa --directory '../results/snakemake_test_2/' --config input_fa_folder=/home/projects/16s_to_bins_project/data/salmonella/ input_fna=test.fna --cores 2
 
-# DONE bins_folder=\'{bins_folder}\'"
-# DONE all_bin_seqs_path=\'{all_bin_seqs_path}\'"
-# DONE asv_seqs_path=\'{asv_seqs_path}\'"
-# DONE generic_16s=\'{generic_16s}\'"
-# DONE tool=\'{tool}\'"
-# TODO s1_min_pct_id=s1_min_pct_id"
-# TODO s2_min_pct_id=s2_min_pct_id"
-# TODO s1_min_length=s1_min_length"
-# TODO s2_min_length=s2_min_length"
-# DONE s1_mmseqs_sensitivity=s1_mmseqs_sensitivity"
-# DONE s2_mmseqs_sensitivity=s2_mmseqs_sensitivity"
-# TODO min_length_pct=min_length_pct"
-# TODO max_gaps=max_gaps"
-
-
+# NOTE add tool name to output
+search_tool = 'blast' if config['blast'] else 'mmseqs'
 # This will eventually move the output file to a designated location
 rule all:
     input:
-       f"stage2_asvs_{config['tool']}.tab"
+       f"stage2_asvs_{search_tool}.tab"
 
 rule no_asvs:
     input:
-       f"barrnap_and_{config['tool']}_asvs.fna"
+       f"barrnap_and_{search_tool}_asvs.fna"
 
 rule combine_barrnap_with_other: # where other is blast or mmseqs
+    # TODO change tool to search_tool
     input:
         other_fasta_path = "stage1_asvs_{tool}_matches.fna",
         other_stats_path =  "stage1_asvs_{tool}.tab",
@@ -40,19 +27,33 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
     output:
         out_fasta_path = "barrnap_and_{tool}_asvs.fna"
     run:
-        combine_mbstats_barrnap(input['other_fasta_path'], input['other_stats_path'],
-                input['barrnap_fasta_path'], output['out_fasta_path'])
+        #TODO use config.get(key)
+        min_pct_id = None if 's1_min_pct_id' in config else config['s1_min_pct_id']
+        min_length = config['s1_min_length'] \
+            if 's1_min_length' in config else None
+        combine_mbstats_barrnap(input['other_fasta_path'],
+                                input['other_stats_path'],
+                                input['barrnap_fasta_path'],
+                                output['out_fasta_path'],
+                                min_pct_id = min_pct_id ,
+                                min_length = min_length )
 
-
-
-path_to_combined_bins = LOCALY_COMBINED_BINS if config['all_bin_seqs_path'] == 'None' else config['all_bin_seqs_path']
+assert "bins" in config, "You must define the location of your bins!"
+if pth.isdir(config['bins']):
+    bins_folder = config['bins']
+    path_to_combined_bins = LOCALY_COMBINED_BINS
+else:
+    bins_folder = None
+    path_to_combined_bins = config['bins']
 rule combine_input_fa:
     input:
-        "NA" if config['bins_folder'] == 'None' else glob.glob(os.path.join(config['bins_folder'], "*.fa*"))
+        bins_folder
     output:
         LOCALY_COMBINED_BINS
     run:
-       for i in input:
+        # TODO add a file extention argument defautl to fa
+        # TODO Put all run args into funcs in other py
+       for i in glob.glob(os.path.join(, "*.fa*")):
            if i.endswith(".fa"):
                shell("cat {i} >> {output}")
            elif i.endswith('.fa.gz'):
@@ -109,7 +110,6 @@ rule pullseq_header_name:
        headers = pd.read_csv(f"{wildcards.level}_asvs_{wildcards.tool}_headers.txt",
                           sep='\n', header=None, names=["head"])["head"].values
        filter_fasta_from_headers(f"{input[0]}", f"{output}", headers)
-       # shell("/usr/local/bin/pullseq_header_name.py -i {input[0]} -o {output} -e F -n {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
 
 rule mmseqs_stage2_search:
     input:
@@ -138,6 +138,32 @@ rule mmseqs_stage2_search:
              " {output[0]}/target "
              " {output[0]}/mmseqs_out "
              " {output[1]}")
+
+rule stage2_filtering:
+    input:
+       "barrnap_and_{tool}_asvs.fna",
+       "stage2_asvs_{tool}.tab"
+    output:
+       "barrnap_and_{tool}_asvs_matching_seqs.fna"
+    threads: workflow.cores
+    # Add sensitivity seting as f string
+    run:
+        min_pct_id = config['s1_min_pct_id'] \
+            if 's2_min_pct_id' in config else None
+        min_length = config['s1_min_length'] \
+            if 's2_min_length' in config else None
+        min_length_pct = config['s1_min_pct_id'] \
+            if 'min_length_pct' in config else None
+        min_gaps = config['s1_min_length'] \
+            if 'max_gaps' in config else None
+        mbstats = read_mbstats(input[0])
+        mbstats = filter_mdstats(mbstats,
+                        min_pct_id = min_pct_id,
+                        min_length = min_length,
+                        min_length_pct = min_length_pct,
+                        max_gaps = max_gaps
+                        )
+        filter_fasta_from_headers(input[1], output, mbstats['sseqid'].values)
 
 rule blast_stage2_search:
     input:
@@ -168,23 +194,6 @@ rule run_barrnap:
         grep \">\" 16S-fasta.fna | sed 's/>//g' > 16S-id.txt
         xargs samtools faidx 16S-fasta.fna < 16S-id.txt > {output}
         """
-
-# rule get_16s_headers_barrnap:
-#     input:
-#         "16S-fasta.fna"
-#     output:
-#         "16S-id.txt"
-#     shell:
-#         "grep \">\" {input} | sed 's/>//g' > {output}"
-#
-# rule samtools_get_16s_fna:
-#     input:
-#         "16S-fasta.fna",
-#         "16S-id.txt"
-#     output:
-#         "barrnap_fastafile-16S.fna"
-#     shell:
-#         "xargs samtools faidx {input[0]} < {input[1]} > {output}"
 
 
 

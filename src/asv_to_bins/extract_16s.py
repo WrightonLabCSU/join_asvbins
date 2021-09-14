@@ -8,9 +8,14 @@ from skbio import read as read_fa
 from skbio import Sequence
 
 
-def fasta_to_df(path):
-    df = pd.DataFrame({i.metadata['id']:[i.values]
-                       for i in read_fa(path, format='fasta')})
+def fasta_to_df(path, headers=None):
+    if headers is not None:
+        df = pd.DataFrame({seq.metadata['id']:[seq.values]
+                           for seq in read_fa(path, format='fasta')
+                           if seq.metadata['id'] in headers})
+    else:
+        df = pd.DataFrame({seq.metadata['id']:[seq.values]
+                           for seq in read_fa(path, format='fasta')})
     df = df.T
     df.reset_index(inplace=True)
     df.columns = ['header', 'seq']
@@ -30,8 +35,10 @@ def df_to_fasta(df:pd.DataFrame, path:str):
 def filter_fasta_from_headers(in_fasta_path, out_fasta_path, headers,
                       report_prath:str=None, show_report=False):
     headers = set(headers)
-    write_fa((seq for seq in read_fa(in_fasta_path, format='fasta') if seq.metadata['id'] in headers),
-             'fasta', out_fasta_path)
+    if out_fasta_path is not None:
+        write_fa((seq for seq in read_fa(in_fasta_path, format='fasta')
+                  if seq.metadata['id'] in headers),
+                 'fasta', out_fasta_path)
 
 def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
     data.sort_values('start')
@@ -52,10 +59,12 @@ def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
 
 
 def process_barrnap(data:pd.DataFrame) -> pd.DataFrame:
-    data[['name', 'start']] = data['header'].str.split(':', expand=True)
+    data.rename(columns={'header': 'old_header'}, inplace=True)
+    data[['header', 'start']] = data['old_header'].str.split(':', expand=True)
     data[['start', 'stop']] = data['start'].str.split('-', expand=True)
     data[['start', 'stop']] = data[['start', 'stop']].astype(int)
-    data = data.groupby('name').apply(merge_duplicate_seqs)
+    data = data.groupby('header').apply(merge_duplicate_seqs).\
+        reset_index(drop=True)
     # extra assert statement to cover by back
     assert sum((data['stop'] - data['start']) != \
                data['seq'].apply(len)) == 0, \
@@ -86,11 +95,6 @@ def test_barnap_procesing():
                                   check_index_type=False, check_names=False)
 
 
-def read_and_process_barrnap(fasta_path):
-    data = fasta_to_df(fasta_path)
-    data = process_barrnap(data)
-    return data
-
 def read_mbstats(stats_path:str) -> pd.DataFrame:
     stats = pd.read_csv(stats_path, header=None, sep='\t', names=[
         "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
@@ -107,12 +111,12 @@ def read_mbstats_and_fasta(fasta_path:str, stats_path:str) -> pd.DataFrame:
     return data
 
 
-def read_and_process_mbstats(fasta_path:str, stats_path:str, headers=None):
-    # Note get stats on balst evalue and lenther so that  we get cutofs
-    # Barnnap
-    data = read_mbstats_and_fasta(fasta_path, stats_path)
-    data = process_mbstats(data, headers=headers)
-    return data
+# def read_and_process_mbstats(fasta_path:str, stats_path:str, headers=None):
+#     # Note get stats on balst evalue and lenther so that  we get cutofs
+#     # Barnnap
+#     data = read_mbstats_and_fasta(fasta_path, stats_path)
+#     data = process_mbstats(data, headers=headers)
+#     return data
 
 
 def get_mbstats_dups(data):
@@ -123,7 +127,7 @@ def get_mbstats_dups(data):
     return dups
 
 
-def process_mbstats(data:pd.DataFrame, headers=None) -> pd.DataFrame:
+def process_mbdata(data:pd.DataFrame, headers=None) -> pd.DataFrame:
     # TODO you may want to use this again
     # get_mbstats_dups(data)
     # Remove mbstats data dups keeping the longest string
@@ -141,77 +145,40 @@ def process_mbstats(data:pd.DataFrame, headers=None) -> pd.DataFrame:
 
 
 def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
-    barrnap = barrnap[['header', 'seq']]
-    mbstats = mbstats[['header', 'seq']]
-    mbstats['mbstats'] = True
-    barrnap['barrnap'] = True
+    barseqs= barrnap[['header', 'seq']].copy()
+    mbseqs = mbstats[['header', 'seq']].copy()
+    mbseqs['mbseqs'] = True
+    barseqs['barseqs'] = True
     # NOTE we have a choice for merge, we can convert the arays to tuples or
     # we can fix the problem after. I opt for option 2, it gives more control.
-    data = pd.merge(barrnap, mbstats, on='header', how='outer')
-    data[['mbstats', 'barrnap']] = data[['mbstats', 'barrnap']].fillna(False)
-    data.rename(columns={'seq_x': 'seq_bar', 'seq_y': 'seq_bla'},
+    data = pd.merge(barseqs, mbseqs, on='header',
+                    how='outer')
+    data[['mbseqs', 'barseqs']] = data[['mbseqs', 'barseqs']].fillna(False)
+    data.rename(columns={'seq_x': 'seq_bar', 'seq_y': 'seq_other'},
                 inplace=True)
-    data['seq'] = data.apply(lambda x:
-                    x['seq_bar'] if x['barrnap'] and not x['mbstats']
-               else x['seq_bla'] if x['mbstats'] and not x['barrnap']
-               else x['seq_bar'] if np.array_equal(x['seq_bar'], x['seq_bla'])
-               else raise_(
-                   Exception("Non equal duplicates in barrnap, and mbstats")),
-        axis=1)
-    data[['seq', 'note']] = data.apply(
-        lambda x:
-                    (x['seq_bar'], 'Barnnap')
-               if x['barrnap'] and not x['mbstats']
-               else (x['seq_bla'], 'BLAST')
-               if x['mbstats'] and not x['barrnap']
-               else (x['seq_bar'], 'Barnnap+BLAST')
-               if (len(x['seq_bar']) >= len(x['seq_bla']))
-               else (x['seq_bar'], 'BLAST+Barnnap'),
-        axis=1, result_type='expand')
+    def select_and_describe_seq(x):
+        if x['barseqs'] and not x['mbseqs']:
+            return x['seq_bar'], 'Barnnap'
+        elif x['mbseqs'] and not x['barseqs']:
+            return x['seq_other'], 'Other'
+        elif len(x['seq_bar']) > len(x['seq_other']):
+            return x['seq_bar'], 'Barnnap>Other'
+        elif len(x['seq_bar']) < len(x['seq_other']):
+            return x['seq_bar'], 'Other>Barnnap'
+        elif len(x['seq_bar']) == len(x['seq_other']):
+            return x['seq_bar'], 'Other=Barnnap'
+        else:
+            raise Exception("Non equal duplicates in barseqs, and mbseqs")
+
+    data[['seq', 'note']] = data.apply(select_and_describe_seq, axis=1, result_type='expand')
     print("After Merge: \n"
-          " There are %i Sequences found by Barrnap.\n"
-          " There are %i Sequences found by BLAST.\n"
-          " There are %i Sequences found by both Barrnap and BLAST.\n" \
-          % (sum(data['barrnap']),
-             sum(data['mbstats']),
-             sum(data['mbstats'] & data['barrnap']))
+         f" There are {sum(data['barseqs'])} Sequences found by Barrnap.\n"
+         f" There are {sum(data['mbseqs'])} Sequences found by"
+          " MMseqs/BLAST.\n"
+         f" There are {sum(data['mbseqs'] & data['barseqs'])}"
+          " Sequences found by both Barrnap and MMseqs/BLAST.\n"
           )
     return data[['header', 'seq', 'note']]
-
-
-def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
-                          barrnap_fasta_path:str, out_fasta_path:str):
-    mbstats = read_and_process_mbstats(mbstats_fasta_path, mbstats_stats_path)
-    barrnap = read_and_process_barrnap(barrnap_fasta_path)
-    data = combine_fasta(mbstats, barrnap)
-    df_to_fasta(data, out_fasta_path)
-
-
-
-
-# DONE s1_min_pct_id=s1_min_pct_id"
-# DONE s2_min_pct_id=s2_min_pct_id"
-# DONE s1_min_length=s1_min_length"
-# DONE s2_min_length=s2_min_length"
-# DONE max_missmatch=max_missmatch"
-# DONE min_length_pct=min_length_pct"
-# DONE max_gaps=max_gaps"
-# TODO formalize these tests
-#     mbstats.loc['gapopen', 1]
-#     mbstats.loc[['gapopen', 212129]]
-#     mbstats.loc[212129, 'gapopen'] = 1
-#     filter_data_set(mbstats)
-#     filter_data_set(mbstats, max_gaps=1)
-#     mbstats['mismatch']
-#     filter_data_set(mbstats, max_missmatch=7)
-#     mbstats['length']
-#     filter_data_set(mbstats, min_length=49)
-#     mbstats['sseqid']
-#     mbstats['length'] / mbstats['slen']
-#     filter_data_set(mbstats, min_length_pct=1)
-#     mbstats['pident']
-#     filter_data_set(mbstats, min_pct_id=84)
-#     filter_data_set(mbstats, min_pct_id=84, max_gaps=0)
 
 def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
                     min_length_pct:float=None, max_gaps:int=None,
@@ -234,21 +201,65 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
         axis=1)
         ]
 
-def filter_to_lenth(in_data):
-    """Filter to 100% length"""
-    data = in_data.copy()
-    return data[data['qlen'] <= data['slen']]
+def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
+                            barrnap_fasta_path:str, out_fasta_path:str,
+                            min_pct_id:float=None, min_length:int=None):
+    mbstats = read_mbstats(mbstats_stats_path)
+    mbstats = filter_mdstats(mbstats,
+                             min_pct_id = min_pct_id,
+                             min_length = min_length)
+    mbseqs = fasta_to_df(mbstats_fasta_path, mbstats['sseqid'].values)
+    mbdata = pd.merge(mbseqs, mbstats, right_on='sseqid', left_on='header',
+                        how='inner')
+    mbdata = process_mbdata(mbdata)
+    barrnap = fasta_to_df(barrnap_fasta_path)
+    barrnap = process_barrnap(barrnap)
+    data = combine_fasta(mbdata, barrnap)
+    df_to_fasta(data, out_fasta_path)
+    df_to_fasta(data, 'test.fa')
 
-def filter_to_gaps(in_data):
-    """Filter to 0 gaps"""
-    data = in_data.copy()
-    return data[data['gapopen'] <= 0]
 
-def filter_to_mismatch(in_data, mismatch):
-    """Filter to below and given number of mismatches"""
-    data = in_data.copy()
-    return data[data <= mismatch]
 
+
+# DONE s1_min_pct_id=s1_min_pct_id"
+# DONE s2_min_pct_id=s2_min_pct_id"
+# DONE s1_min_length=s1_min_length"
+# DONE s2_min_length=s2_min_length"
+# DONE max_missmatch=max_missmatch"
+# DONE min_length_pct=min_length_pct"
+# DONE max_gaps=max_gaps"
+
+# TODO formalize these tests
+#     mbstats.loc['gapopen', 1]
+#     mbstats.loc[['gapopen', 212129]]
+#     mbstats.loc[212129, 'gapopen'] = 1
+#     filter_data_set(mbstats)
+#     filter_data_set(mbstats, max_gaps=1)
+#     mbstats['mismatch']
+#     filter_data_set(mbstats, max_missmatch=7)
+#     mbstats['length']
+#     filter_data_set(mbstats, min_length=49)
+#     mbstats['sseqid']
+#     mbstats['length'] / mbstats['slen']
+#     filter_data_set(mbstats, min_length_pct=1)
+#     mbstats['pident']
+#     filter_data_set(mbstats, min_pct_id=84)
+#     filter_data_set(mbstats, min_pct_id=84, max_gaps=0)
+
+# from sys import getsizeof
+# def human_readable_size(size, decimal_places=2):
+#     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
+#         if size < 1024.0 or unit == 'PiB':
+#             break
+#         size /= 1024.0
+#     return f"{size:.{decimal_places}f} {unit}"
+# human_readable_size(getsizeof(mbseqs))
+
+# combine_mbstats_barrnap(input['other_stats_path'],
+#                         input['barrnap_fasta_path'], output['out_fasta_path'])
+# combine_mbstats_barrnap("stage1_asvs_mmseqs.tab", "barrnap_fastafile-16S.fna")
+#         combine_mbstats_barrnap(input['other_fasta_path'], input['other_stats_path'],
+#                 input['barrnap_fasta_path'], output['out_fasta_path'])
 # blast_fasta_path = "../../results/original_approach/blast_fastafile-16S.fna"
 # blast_stats_path = "../../results/original_approach/blast_fastafile-16S.txt"
 # barrnap_fasta_path = \
