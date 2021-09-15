@@ -3,17 +3,18 @@ import os
 import glob
 import pathlib
 import pandas as pd
-from asv_to_bins.extract_16s import combine_mbstats_barrnap, filter_fasta_from_headers
+from asv_to_bins.seq_match_utils import combine_mbstats_barrnap, filter_fasta_from_headers
 
 LOCALY_COMBINED_BINS = "all_bins_combined"
 
+
 # TODO Three outputs fasta with 16 from bins, fata with asv matches to bins, and 2 tab files describing them
-# NOTE add tool name to output
 search_tool = 'blast' if config['blast'] else 'mmseqs'
 rule search1_16s_bin_finds:
     input:
         f"{config['output']}_16s_bin_finds_stats.tab",
         f"{config['output']}_16s_bin_finds_seqs.fa"
+
 
 rule search2_asv_bin_matches:
     input:
@@ -21,13 +22,35 @@ rule search2_asv_bin_matches:
         f"{config['output']}_asv_bin_matches_seqs.fa"
 
 
-rule all:
+rule stage1_set_output_fasta:
     input:
-       f"stage2_asvs_{search_tool}.tab"
+        f"barrnap_and_{search_tool}_asvs.fna",
+        # TODO fix the stats
+        f"stage1_asvs_{search_tool}.tab"
+    output:
+        "{output}_asv_bin_matches_seqs.fa",
+        "{output}_asv_bin_matches_stats.tab"
+    shell:
+        """
+        cp input[0] output[0]
+        cp input[0] output[0]
+        """
 
-rule no_asvs:
+
+rule stage2_set_output_fasta:
     input:
-       f"barrnap_and_{search_tool}_asvs.fna"
+        f"barrnap_and_{search_tool}_asvs.fna",
+        # TODO fix the stats
+        f"stage2_asvs_{search_tool}.tab"
+    output:
+        "{output}_16s_bin_finds_seqs.fa",
+        "{output}_16s_bin_finds_stats.tab"
+    shell:
+        """
+        cp input[0] output[0]
+        cp input[0] output[0]
+        """
+
 
 rule combine_barrnap_with_other: # where other is blast or mmseqs
     # TODO change tool to search_tool
@@ -46,13 +69,15 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
                                 min_pct_id = config['s1_min_pct_id'],
                                 min_length = config['s1_min_length'])
 
-assert "bins" in config, "You must define the location of your bins!"
+
 if os.path.isdir(config['bins']):
     bins_folder = config['bins']
     path_to_combined_bins = LOCALY_COMBINED_BINS
 else:
     bins_folder = "None"
     path_to_combined_bins = config['bins']
+
+
 rule combine_input_fa:
     input:
         bins_folder
@@ -61,11 +86,13 @@ rule combine_input_fa:
     run:
        # TODO add a file extention argument defautl to fa
        # TODO Put all run args into funcs in other py
-       for i in glob.glob(os.path.join(input, "*.fa*")):
-           if i.endswith(".fa"):
+       # TODO make absolut in the file type
+       for i in glob.glob(os.path.join(input, "*.{config['fasta_extention']}*")):
+           if i.endswith(f".{config['fasta_extention']}"):
                shell("cat {i} >> {output}")
-           elif i.endswith('.fa.gz'):
+           elif i.endswith('gz'):
                shell("gzip -cd  {i} >> {output}")
+
 
 rule mmseqs_stage1_search:
     input:
@@ -95,6 +122,7 @@ rule mmseqs_stage1_search:
              " {output[0]}/mmseqs_out "
              " {output[1]}")
 
+
 rule blast_stage1_search:
     input:
         path_to_combined_bins,
@@ -107,6 +135,7 @@ rule blast_stage1_search:
        shell("makeblastdb -dbtype nucl -in {input[0]} -out {output[0]}/blast_db")
        shell("blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"")
 
+
 rule pullseq_header_name:
     input:
         path_to_combined_bins,
@@ -118,6 +147,7 @@ rule pullseq_header_name:
        headers = pd.read_csv(f"{wildcards.level}_asvs_{wildcards.tool}_headers.txt",
                           sep='\n', header=None, names=["head"])["head"].values
        filter_fasta_from_headers(f"{input[0]}", f"{output}", headers)
+
 
 rule mmseqs_stage2_search:
     input:
@@ -147,14 +177,13 @@ rule mmseqs_stage2_search:
              " {output[0]}/mmseqs_out "
              " {output[1]}")
 
+
 rule stage2_filtering:
     input:
        "barrnap_and_{tool}_asvs.fna",
        "stage2_asvs_{tool}.tab"
     output:
        "barrnap_and_{tool}_asvs_matching_seqs.fna"
-    threads: workflow.cores
-    # Add sensitivity seting as f string
     run:
         mbstats = read_mbstats(input[0])
         mbstats = filter_mdstats(mbstats,
@@ -164,6 +193,7 @@ rule stage2_filtering:
                         max_gaps = config['max_gaps']
                         )
         filter_fasta_from_headers(input[1], output, mbstats['sseqid'].values)
+
 
 rule blast_stage2_search:
     input:
@@ -179,6 +209,7 @@ rule blast_stage2_search:
         blastn -db {output[0]}/blast_db -out {output[1]} -query {input[1]} \
         -outfmt \"6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen\"
         """
+
 
 rule run_barrnap:
     input:

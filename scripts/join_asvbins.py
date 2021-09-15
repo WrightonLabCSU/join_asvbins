@@ -5,7 +5,7 @@ from contextlib import redirect_stdout
 import subprocess
 import argparse
 from snakemake import snakemake
-from asv_to_bins.extract_16s import combine_mbstats_barrnap
+from asv_to_bins.seq_match_utils import combine_mbstats_barrnap
 
 
 def get_package_path(local_path):
@@ -30,6 +30,7 @@ CONFIG_VALUES = {
     "output": None,
     "asv_seqs": None,
     "blast": False,
+    "fasta_extention": 'fa',
     "generic_16s":
        get_package_path("data/silva_clusterd_95pct_all_seqs.fasta")
 }
