@@ -1,8 +1,12 @@
 """This is the main entry point of the program"""
 import os
+import io
+from contextlib import redirect_stdout
 import subprocess
 import argparse
+from snakemake import snakemake
 from asv_to_bins.extract_16s import combine_mbstats_barrnap
+
 
 def get_package_path(local_path):
     abs_snake_path = os.path.join(os.path.dirname(
@@ -12,8 +16,18 @@ def get_package_path(local_path):
         f"Unable to locate key file path; tried {abs_snake_path}"
     return abs_snake_path
 
-MAIN_VALUES = {
+
+class ParseKwargs(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, dict())
+        for value in values:
+            key, value = value.split('=')
+            getattr(namespace, self.dest)[key] = value
+
+
+CONFIG_VALUES = {
     "bins": None,
+    "output": None,
     "asv_seqs": None,
     "blast": False,
     "generic_16s":
@@ -32,70 +46,68 @@ FILTER_VALUES = {
 }
 
 
-# NOTE that the working_dir is acting as the output which is undified for now
-# TODO Three outputs fasta with 16 from bins, fata with asv matches to bins, and 2 tab files describing them
-# NOTE rename this
-# TODO alwo input of step 1 serch results externaly done
-def snakemake_run(bins:str, asv_seqs:str=MAIN_VALUES['asv_seqs'],
-                  working_dir:str='./tmp', blast:bool=MAIN_VALUES['blast'],
-                  output:str="", generic_16s=MAIN_VALUES['generic_16s'],
-                  s1_min_pct_id=FILTER_VALUES['s1_min_pct_id'],
-                  s2_min_pct_id=FILTER_VALUES['s2_min_pct_id'],
-                  s1_min_length=FILTER_VALUES['s1_min_length'],
-                  s2_min_length=FILTER_VALUES['s2_min_length'],
-                  s1_mmseqs_sensitivity=FILTER_VALUES["s1_mmseqs_sensitivity"],
-                  s2_mmseqs_sensitivity=FILTER_VALUES["s2_mmseqs_sensitivity"],
-                  min_length_pct=FILTER_VALUES['min_length_pct'],
-                  max_gaps=FILTER_VALUES['max_gaps'],
-                  snake_rule:str = None,
-                  max_missmatch:int=FILTER_VALUES['max_missmatch'],
-                  no_clean:bool=False, no_filter:bool=False, snake_args:str="",
-                  print_dag:str=None,
-                  threads=1):
-
+# DONE alwo input of step 1 serch results externaly done
+# TODO clize is a beter tool for this
+def join_asvbins(output:str, bins:str=None, asv_seqs:str=CONFIG_VALUES['asv_seqs'],
+                 working_dir:str='./tmp', blast:bool=CONFIG_VALUES['blast'],
+                 generic_16s=CONFIG_VALUES['generic_16s'],
+                 s1_min_pct_id=FILTER_VALUES['s1_min_pct_id'],
+                 s2_min_pct_id=FILTER_VALUES['s2_min_pct_id'],
+                 s1_min_length=FILTER_VALUES['s1_min_length'],
+                 s2_min_length=FILTER_VALUES['s2_min_length'],
+                 s1_mmseqs_sensitivity=FILTER_VALUES["s1_mmseqs_sensitivity"],
+                 s2_mmseqs_sensitivity=FILTER_VALUES["s2_mmseqs_sensitivity"],
+                 min_length_pct=FILTER_VALUES['min_length_pct'],
+                 max_gaps=FILTER_VALUES['max_gaps'], snake_rule:str=None,
+                 fasta_extention:str='fa', bin_16s_seqs:str=None,
+                 max_missmatch:int=FILTER_VALUES['max_missmatch'],
+                 no_clean:bool=False, no_filter:bool=False, stats:str=None,
+                 snake_args:dict={}, print_dag:bool=False,
+                 print_rulegraph:bool=False,
+                 threads=1):
     working_dir = os.path.abspath(working_dir)
-    bins = os.path.abspath(bins)
+    if bins is not None:
+        bins = os.path.abspath(bins)
     if asv_seqs is not None:
         asv_seqs = os.path.abspath(asv_seqs)
+    targets = []
     if snake_rule is None:
         if asv_seqs is not None:
-            snake_rule = "all"
-        else:
-            snake_rule = "no_asvs"
+            targets.append("search2_asv_bin_matches")
+        if bin_16s_seqs is None:
+            targets.append("search1_16s_bin_finds")
+    else:
+        targets.append(snake_rule)
+    assert len(targets) > 0, "There are no tasks for join_asvbins to do."
+    " Check that all arguments are logical. For example, if you provided"
+    " 16s from bins but not asvs then the progam has nothing to do."
     all_locals = locals()
-    config_values = MAIN_VALUES if no_filter \
-                    else dict(MAIN_VALUES, **FILTER_VALUES)
-    snake_config = " ".join([f"k={all_locals[k]}"
-                             for k in config_values
-                             if all_locals[k] is not None])
-    key_dag_args = ( # These arguments may affect the DAG so they are separate
-        f" --snakefile {get_package_path('Snakefile')}"
-        f" --directory {working_dir}"
-        f" --config {snake_config}"
-        f" {snake_args}"
-    )
-    if print_dag is not None:
-        subprocess.run(f"snakemake {key_dag_args} --forceall --dag |"
-                       " dot -Tpdf > {print_dag}.pdf",
-                       check=True, shell=True)
+    config = {i:all_locals.get(i) for i in CONFIG_VALUES}
+    if not no_filter:
+        # TODO when 3.9 is more popular replace this sintax
+        config = dict(config, **{i:all_locals.get(i) for i in FILTER_VALUES})
+    if print_dag or print_rulegraph:
+        # NOTE you need to pass this to dot -Tpdf > name.pdf sadly.
+        #      Or is? we may be able to remove the graphiz dependency
+        snakemake(get_package_path('Snakefile'), targets=targets, workdir=working_dir,
+                  config=config, forceall=True, printdag=print_dag,
+                  printrulegraph=print_rulegraph, **snake_args)
         return
-    #NOTE The folders are cleaned by default
     if os.path.exists(working_dir) and not no_clean:
-        subprocess.run(f"snakemake --delete-all-output --cores {threads}"
-                       f" {key_dag_args}",
-                       check=True, shell=True)
+        snakemake(get_package_path('Snakefile'), workdir=working_dir,
+                  config=config, delete_all_output=True, **snake_args)
+    # Note that stats='stats should work'
+    snakemake(get_package_path('Snakefile'), workdir=working_dir,
+              config=config, cores=threads, **snake_args)
 
-    subprocess.run(f"snakemake {snake_rule} --cores {threads} {key_dag_args}",
-                   check=True, shell=True)
 
-
-def parse_args():
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract 16s from bins using "
                                     "BLAST and Barrnap.")
     parser.add_argument( "--snake_rule",  type=str, default="all",
                         help="This script is snakemake under the hood. You"
                         "can run select Snakemake rules with this argument.")
-    parser.add_argument("-b", "--bins",  type=str, default=MAIN_VALUES['bins'],
+    parser.add_argument("-b", "--bins",  type=str, default=CONFIG_VALUES['bins'],
                         help="The bin that you would like to match asvs to."
                         " This can be an fna file that has all the bins"
                         " combided or a directory of bins in seperate fa"
@@ -105,18 +117,25 @@ def parse_args():
     parser.add_argument("-w", "--working_dir", type=str, default='./tmp',
                         help="The folder where you would like the resulting"
                         " files and output to be stored")
-    parser.add_argument( "--print_dag",  type=str, default=None,
-                        help="Print the DAG that is being used to run this"
-                        " pipline Note that your choice of args will result"
-                        " in a different DAG.")
+    parser.add_argument( "--print_dag", action='store_true',
+                        help="Print the directed aciclic graph used to run the"
+                        " pipline. This will be in graphiz dot format. Pipe"
+                        " the output of the comand to 'dot -Tpdf > name.pdf'"
+                        " to visulize")
+    parser.add_argument( "--print_rulegraph", action='store_true',
+                        help="Print the directed aciclic graph used to run the"
+                        " pipline. This will be in graphiz dot format. Pipe"
+                        " the output of the comand to 'dot -Tpdf > name.pdf'"
+                        " to visulize")
     parser.add_argument( "-a", "--asv_seqs",  type=str, default=None,
                         help="The asvs you would like to atach to your bins.")
+    parser.add_argument("--stats",  type=str, default=None,
+                        help="Passed directly to snakemake to serve as the"
+                        " output location for the stats file.")
     parser.add_argument("--generic_16s",  type=str,
-                        default=MAIN_VALUES['generic_16s'],
+                        default=CONFIG_VALUES['generic_16s'],
                         help="A set of generic_16s files that may be part of"
                         " your bins.")
-    # TODO If necessary make this optional so it can connect to other command
-    #      line tools or pipe designated output to other programs.
     parser.add_argument("-t", "--threads", type=int, default=1,
                         help="The number of threads that will be used by the "
                         "program and subprocess.")
@@ -124,6 +143,23 @@ def parse_args():
                         help="Specifies that blast should be used instead of"
                         " mmseqs. Good if your have limited memory or don't"
                         " trust MMseqs2.")
+
+    parser.add_argument("--bin_16s_seqs", type=str, default=None,
+                        help="Provide a fasta file of 16s sequences to surve"
+                        " as input to the sectond search in the sequence,"
+                        " the search matching bins against asv's. If this"
+                        " argument is provided then the bins argument will"
+                        " be ignored and the stage on fast and stats.tab"
+                        " not be made. Note that your sequences must be"
+                        " trimed, before you run this program.")
+    parser.add_argument("--fasta_extention", type=str, default='fa',
+                        help="The extention of fasta files when providing a"
+                        " directory of bins. as long as your files are in "
+                        " fasta format, you can give them any extention. Also,"
+                        " gunziped files are suported as long as they have the"
+                        " '.gz' extention. No other formats are suported and"
+                        " files that don't have the target extention are"
+                        " ignored.")
     parser.add_argument("--no_clean", action='store_true',
                         help="Specifies that the directory should NOT be"
                         " cleaned of results of pass runs. If your run is"
@@ -132,10 +168,11 @@ def parse_args():
     parser.add_argument("--no_filter", action='store_true',
                         help="Nuclier option to remove all filters. from"
                         " the analisis.")
-    parser.add_argument("--snake_args", type=str, default="",
-                        help="Additional args for snake make, put them in"
-                        " quots"
-                        " like you are providing them to snake make")
+    parser.add_argument("--snake_args", nargs='*', action=ParseKwargs,
+                        default={},
+                        help="Additional args for snake make, the format is"
+                        " 'snakemake_arg=value'. Remove leading dashes and"
+                        " seperate entries with spaces.")
     parser.add_argument("-o", "--output", type=str, default=1,
                         help="Instead of dumping the output into the output "
                         "folder, the program should make a new folder with "
@@ -186,11 +223,8 @@ def parse_args():
                         help="This limits the number of mismatches that will"
                         " be tolerated in matches from the ASVs to bin 16S.")
     # args = parser.parse_args()
-    parser.set_defaults(func=snakemake_run)
+    parser.set_defaults(func=join_asvbins)
     args = parser.parse_args()
     args_dict = {i: j for i, j in vars(args).items() if i != 'func'}
     args.func(**args_dict)
 
-
-if __name__ == '__main__':
-    parse_args()

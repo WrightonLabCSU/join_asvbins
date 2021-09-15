@@ -7,9 +7,20 @@ from asv_to_bins.extract_16s import combine_mbstats_barrnap, filter_fasta_from_h
 
 LOCALY_COMBINED_BINS = "all_bins_combined"
 
+# TODO Three outputs fasta with 16 from bins, fata with asv matches to bins, and 2 tab files describing them
 # NOTE add tool name to output
 search_tool = 'blast' if config['blast'] else 'mmseqs'
-# This will eventually move the output file to a designated location
+rule search1_16s_bin_finds:
+    input:
+        f"{config['output']}_16s_bin_finds_stats.tab",
+        f"{config['output']}_16s_bin_finds_seqs.fa"
+
+rule search2_asv_bin_matches:
+    input:
+        f"{config['output']}_asv_bin_matches_stats.tab",
+        f"{config['output']}_asv_bin_matches_seqs.fa"
+
+
 rule all:
     input:
        f"stage2_asvs_{search_tool}.tab"
@@ -28,22 +39,19 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
         out_fasta_path = "barrnap_and_{tool}_asvs.fna"
     run:
         #TODO use config.get(key)
-        min_pct_id = None if 's1_min_pct_id' in config else config['s1_min_pct_id']
-        min_length = config['s1_min_length'] \
-            if 's1_min_length' in config else None
         combine_mbstats_barrnap(input['other_fasta_path'],
                                 input['other_stats_path'],
                                 input['barrnap_fasta_path'],
                                 output['out_fasta_path'],
-                                min_pct_id = min_pct_id ,
-                                min_length = min_length )
+                                min_pct_id = config['s1_min_pct_id'],
+                                min_length = config['s1_min_length'])
 
 assert "bins" in config, "You must define the location of your bins!"
-if pth.isdir(config['bins']):
+if os.path.isdir(config['bins']):
     bins_folder = config['bins']
     path_to_combined_bins = LOCALY_COMBINED_BINS
 else:
-    bins_folder = None
+    bins_folder = "None"
     path_to_combined_bins = config['bins']
 rule combine_input_fa:
     input:
@@ -51,9 +59,9 @@ rule combine_input_fa:
     output:
         LOCALY_COMBINED_BINS
     run:
-        # TODO add a file extention argument defautl to fa
-        # TODO Put all run args into funcs in other py
-       for i in glob.glob(os.path.join(, "*.fa*")):
+       # TODO add a file extention argument defautl to fa
+       # TODO Put all run args into funcs in other py
+       for i in glob.glob(os.path.join(input, "*.fa*")):
            if i.endswith(".fa"):
                shell("cat {i} >> {output}")
            elif i.endswith('.fa.gz'):
@@ -114,7 +122,7 @@ rule pullseq_header_name:
 rule mmseqs_stage2_search:
     input:
        "barrnap_and_mmseqs_asvs.fna", # Target
-       config['asv_seqs_path'] # Query
+       config['asv_seqs'] # Query
     output:
        directory("mmseqs_stage2_db"),
        "stage2_asvs_mmseqs.tab"
@@ -148,27 +156,19 @@ rule stage2_filtering:
     threads: workflow.cores
     # Add sensitivity seting as f string
     run:
-        min_pct_id = config['s1_min_pct_id'] \
-            if 's2_min_pct_id' in config else None
-        min_length = config['s1_min_length'] \
-            if 's2_min_length' in config else None
-        min_length_pct = config['s1_min_pct_id'] \
-            if 'min_length_pct' in config else None
-        min_gaps = config['s1_min_length'] \
-            if 'max_gaps' in config else None
         mbstats = read_mbstats(input[0])
         mbstats = filter_mdstats(mbstats,
-                        min_pct_id = min_pct_id,
-                        min_length = min_length,
-                        min_length_pct = min_length_pct,
-                        max_gaps = max_gaps
+                        min_pct_id = config['s2_min_pct_id'],
+                        min_length = config['s2_min_length'],
+                        min_length_pct = config['min_length_pct'],
+                        max_gaps = config['max_gaps']
                         )
         filter_fasta_from_headers(input[1], output, mbstats['sseqid'].values)
 
 rule blast_stage2_search:
     input:
        "barrnap_and_blast_asvs.fna", # Target
-        config['asv_seqs_path'], # Query
+        config['asv_seqs'], # Query
     output:
         directory("blast_stage2_db"),
         "stage2_asvs_blast.tab"
