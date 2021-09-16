@@ -16,7 +16,8 @@ setup(
     version=__version__,
     scripts=['scripts/join_asvbins.py'],
     package_dir={"": "src/"},
-    packages=find_packages(where='src/'),
+    # packages=find_packages(where='src/'),
+    moduals=['join_asvbins.py', 'utils/seq_match.py'],
     description="Asv to bin joining tool",
     long_description=long_description,
     long_description_content_type='text/markdown',  # Optional (see note above)
