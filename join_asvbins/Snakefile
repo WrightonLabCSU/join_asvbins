@@ -3,7 +3,8 @@ import os
 import glob
 import pathlib
 import pandas as pd
-from asv_to_bins.seq_match_utils import combine_mbstats_barrnap, filter_fasta_from_headers
+from asv_to_bins.utils import combine_mbstats_barrnap, \
+                              filter_fasta_from_headers
 
 LOCALY_COMBINED_BINS = "all_bins_combined"
 

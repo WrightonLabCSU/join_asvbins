@@ -40,6 +40,7 @@ def filter_fasta_from_headers(in_fasta_path, out_fasta_path, headers,
                   if seq.metadata['id'] in headers),
                  'fasta', out_fasta_path)
 
+
 def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
     data.sort_values('start')
     joined = data.iloc[0]
@@ -53,14 +54,13 @@ def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
         joined['seq'] = np.concatenate([joined['seq'],
                                         to_join['seq'][trim_point:]])
         joined['stop'] = to_join['stop']
-        joined['header'] = "%s-%i" % (joined['header'].split('-')[0],
-                                      to_join['stop'])
+        joined['barrnap_header'] = f"{joined['header']}:{joined['start']}-{joined['stop']}"
     return joined
 
 
 def process_barrnap(data:pd.DataFrame) -> pd.DataFrame:
-    data.rename(columns={'header': 'old_header'}, inplace=True)
-    data[['header', 'start']] = data['old_header'].str.split(':', expand=True)
+    data.rename(columns={'header': 'barrnap_header'}, inplace=True)
+    data[['header', 'start']] = data['barrnap_header'].str.split(':', expand=True)
     data[['start', 'stop']] = data['start'].str.split('-', expand=True)
     data[['start', 'stop']] = data[['start', 'stop']].astype(int)
     data = data.groupby('header').apply(merge_duplicate_seqs).\
@@ -70,29 +70,6 @@ def process_barrnap(data:pd.DataFrame) -> pd.DataFrame:
                data['seq'].apply(len)) == 0, \
         "The length of the sequence dose not match the size from the indexes."
     return data
-
-
-def test_barnap_procesing():
-    input_df = pd.DataFrame({
-        1: ['a:0-3',       'abc'],
-        2: ['b:0-3',       'abc'],
-        3: ['b:3-4',       'd'],
-        4: ['b:3-7',       'defg'],
-        5: ['c:1002-1007', 'abcde'],
-        6: ['c:1003-1010', 'bcdefghij'],
-        7: ['d:0-3',       'abcd'], }, index=['header', 'seq']).T
-    expect_df = pd.DataFrame({
-        'a': ['a:0-3',       'abc'],
-        'b': ['b:0-7',       'abcdefg'],
-        'c': ['c:1002-1010', 'abcdefghij'],
-        'd': ['d:0-3',       'abcd'],
-    }, index=['header', 'seq']).T
-    input_df['seq'] = input_df['seq'].apply(list)
-    expect_df['seq'] = expect_df['seq'].apply(list)
-    output_df = process_barrnap(input_df)
-    output_df = output_df[['header', 'seq']]
-    pd.testing.assert_frame_equal(output_df, expect_df,
-                                  check_index_type=False, check_names=False)
 
 
 def read_mbstats(stats_path:str) -> pd.DataFrame:
@@ -109,14 +86,6 @@ def read_mbstats_and_fasta(fasta_path:str, stats_path:str) -> pd.DataFrame:
     data = pd.merge(fasta, stats, right_on='sseqid', left_on='header',
                     how='inner')
     return data
-
-
-# def read_and_process_mbstats(fasta_path:str, stats_path:str, headers=None):
-#     # Note get stats on balst evalue and lenther so that  we get cutofs
-#     # Barnnap
-#     data = read_mbstats_and_fasta(fasta_path, stats_path)
-#     data = process_mbstats(data, headers=headers)
-#     return data
 
 
 def get_mbstats_dups(data):
@@ -180,10 +149,10 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
           )
     return data[['header', 'seq', 'note']]
 
+
 def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
                     min_length_pct:float=None, max_gaps:int=None,
                     max_missmatch:int=None):
-
     # NOTE For perfect matches the Alignment Length equals the DB allele Length so the percent should be length/slen.
     return data[
         data.apply(
@@ -200,6 +169,7 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
              if min_length_pct is not None else True),
         axis=1)
         ]
+
 
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
@@ -220,14 +190,6 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
 
 
 
-
-# DONE s1_min_pct_id=s1_min_pct_id"
-# DONE s2_min_pct_id=s2_min_pct_id"
-# DONE s1_min_length=s1_min_length"
-# DONE s2_min_length=s2_min_length"
-# DONE max_missmatch=max_missmatch"
-# DONE min_length_pct=min_length_pct"
-# DONE max_gaps=max_gaps"
 
 # TODO formalize these tests
 #     mbstats.loc['gapopen', 1]

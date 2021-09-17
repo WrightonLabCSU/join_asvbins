@@ -12,18 +12,24 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
         long_description = f.read()
 
 setup(
-    name="asvbin_joiner_rmflynn",
+    name="join_asvbins",
     version=__version__,
-    scripts=['scripts/join_asvbins.py'],
-    package_dir={"": "src/"},
+    # scripts=['scripts/join_asvbins.py'],
+    # package_dir={"": "src/"},
     # packages=find_packages(where='src/'),
-    moduals=['join_asvbins.py', 'utils/seq_match.py'],
+    packages=['join_asvbins', 'join_asvbins/utils'],
+    entry_points={
+        "console_scripts": [
+            "join_asvbins = join_asvbins:main"# ,
+            # "snakemake-bash-completion = snakemake:bash_completion",
+        ]
+    },
     description="Asv to bin joining tool",
     long_description=long_description,
     long_description_content_type='text/markdown',  # Optional (see note above)
     python_requires='>=3',
     # install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'graphviz', 'mmseqs2'],
-    install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake'],
+    install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'pytest'],
     #TODO add mmseqs
     author="Rory Flynn",
     author_email='Rory.Flynn@colostate.edu',
