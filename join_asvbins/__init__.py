@@ -42,7 +42,8 @@ FILTER_VALUES = {
 
 # DONE alwo input of step 1 serch results externaly done
 # TODO clize is a beter tool for this
-def join_asvbins(output:str, bins:str=None, asv_seqs:str=CONFIG_VALUES['asv_seqs'],
+def join_asvbins(output:str, bins:str=None,
+                 asv_seqs:str=CONFIG_VALUES['asv_seqs'],
                  working_dir:str='./tmp', blast:bool=CONFIG_VALUES['blast'],
                  generic_16s=CONFIG_VALUES['generic_16s'],
                  s1_min_pct_id=FILTER_VALUES['s1_min_pct_id'],
@@ -59,7 +60,11 @@ def join_asvbins(output:str, bins:str=None, asv_seqs:str=CONFIG_VALUES['asv_seqs
                  snake_args:dict={}, print_dag:bool=False,
                  print_rulegraph:bool=False,
                  threads=1):
+    """This is the main entry point"""
+    output = os.path.abspath(output)
+    assert os.path.exists(os.path.dirname(output)), f"The output is in a directory that dose not exists, no such location {os.path.dirname(output)}"
     working_dir = os.path.abspath(working_dir)
+    output = os.path.abspath(output)
     if bins is not None:
         bins = os.path.abspath(bins)
     if asv_seqs is not None:
@@ -76,14 +81,19 @@ def join_asvbins(output:str, bins:str=None, asv_seqs:str=CONFIG_VALUES['asv_seqs
     " Check that all arguments are logical. For example, if you provided"
     " 16s from bins but not asvs then the progam has nothing to do."
     all_locals = locals()
-    config = {i:all_locals.get(i) for i in CONFIG_VALUES}
+    config = {i:all_locals.get(i)
+              for i in CONFIG_VALUES
+              if all_locals.get(i) is not None}
     if not no_filter:
         # TODO when 3.9 is more popular replace this sintax
-        config = dict(config, **{i:all_locals.get(i) for i in FILTER_VALUES})
+        config = dict(config, **{i:all_locals.get(i)
+                                 for i in FILTER_VALUES
+                                 if all_locals.get(i) is not None})
     if print_dag or print_rulegraph:
         # NOTE you need to pass this to dot -Tpdf > name.pdf sadly.
         #      Or is? we may be able to remove the graphiz dependency
-        snakemake(get_package_path('Snakefile'), targets=targets, workdir=working_dir,
+        snakemake(get_package_path('Snakefile'),
+                  targets=targets, workdir=working_dir,
                   config=config, forceall=True, printdag=print_dag,
                   printrulegraph=print_rulegraph, **snake_args)
         return

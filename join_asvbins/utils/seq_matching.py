@@ -32,7 +32,7 @@ def df_to_fasta(df:pd.DataFrame, path:str):
 
 
 
-def filter_fasta_from_headers(in_fasta_path, out_fasta_path, headers,
+def filter_fasta_from_headers(in_fasta_path, out_fasta_path:str, headers,
                       report_prath:str=None, show_report=False):
     headers = set(headers)
     if out_fasta_path is not None:
@@ -154,22 +154,24 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
                     min_length_pct:float=None, max_gaps:int=None,
                     max_missmatch:int=None):
     # NOTE For perfect matches the Alignment Length equals the DB allele Length so the percent should be length/slen.
+    data_checks = []
+    if max_gaps is not None:
+        data_checks.append(lambda x: x['gapopen'] <= max_gaps)
+    if max_missmatch is not None:
+        data_checks.append(lambda x: x['mismatch'] <= max_missmatch)
+    if min_length is not None:
+        data_checks.append(lambda x: x['length'] >= min_length)
+    if min_pct_id is not None:
+        data_checks.append(lambda x: x['pident'] >= min_pct_id)
+    if min_length_pct is not None:
+        data_checks.append(lambda x:
+            ((x['length'] / x['slen']) * 100) >= min_length_pct)
     return data[
-        data.apply(
-        lambda x:
-            ((x['gapopen'] <= max_gaps)
-             if max_gaps is not None else True) and
-            ((x['mismatch'] <= max_missmatch)
-             if max_missmatch is not None else True) and
-            ((x['length'] >= min_length)
-             if min_length is not None else True) and
-            ((x['pident'] >= min_pct_id)
-             if min_pct_id is not None else True) and
-            ((((x['length'] / x['slen']) * 100) >= min_length_pct)
-             if min_length_pct is not None else True),
+        data.apply(lambda x: all([l(x) for l in data_checks]),
         axis=1)
         ]
 
+# data.apply( lambda x: ((x['gapopen'] <= max_gaps) if max_gaps is not None else True) and ((x['mismatch'] <= max_missmatch) if max_missmatch is not None else True) and ((x['length'] >= min_length) if min_length is not None else True) and ((x['pident'] >= min_pct_id) if min_pct_id is not None else True) and ((((x['length'] / x['slen']) * 100) >= min_length_pct) if min_length_pct is not None else True), axis=1)
 
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
@@ -187,6 +189,23 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     data = combine_fasta(mbdata, barrnap)
     df_to_fasta(data, out_fasta_path)
     df_to_fasta(data, 'test.fa')
+
+
+def filter_from_mbstats(stats_file:str, fasta_file_in:str, fasta_file_out:str,
+                        min_pct_id:float=None, min_length:int=None,
+                        min_length_pct:float=None, max_gaps:int=None,
+                        max_missmatch:int=None):
+        mbstats = read_mbstats(stats_file)
+        mbstats = filter_mdstats(mbstats,
+                                 min_pct_id=min_pct_id,
+                                 min_length=min_length,
+                                 min_length_pct=min_length_pct,
+                                 max_gaps=max_gaps,
+                                 max_missmatch=max_missmatch
+                        )
+        filter_fasta_from_headers(fasta_file_in,
+                                  fasta_file_out, mbstats['sseqid'].values)
+
 
 
 

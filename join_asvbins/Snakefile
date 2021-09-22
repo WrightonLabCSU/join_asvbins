@@ -3,24 +3,39 @@ import os
 import glob
 import pathlib
 import pandas as pd
-from asv_to_bins.utils import combine_mbstats_barrnap, \
-                              filter_fasta_from_headers
+from join_asvbins.utils.seq_matching import combine_mbstats_barrnap, filter_fasta_from_headers, filter_from_mbstats
 
 LOCALY_COMBINED_BINS = "all_bins_combined"
 
 
 # TODO Three outputs fasta with 16 from bins, fata with asv matches to bins, and 2 tab files describing them
+#
 search_tool = 'blast' if config['blast'] else 'mmseqs'
+output_name = config.get('output')
+bins_path = config.get('bins')
+asv_seqs_path = config.get('asv_seqs')
+fasta_extention = config.get('fasta_extention')
+generic_16s_path = config.get('generic_16s')
+s1_mmseqs_sensitivity = config.get('s1_mmseqs_sensitivity')
+s2_mmseqs_sensitivity = config.get('s2_mmseqs_sensitivity')
+s1_min_pct_id = config.get('s1_min_pct_id')
+s2_min_pct_id = config.get('s2_min_pct_id')
+s1_min_length = config.get('s1_min_length')
+s2_min_length = config.get('s2_min_length')
+s2_min_length_pct = config.get('min_length_pct')
+s2_max_gaps = config.get('max_gaps')
+s2_max_missmatch = config.get('max_missmatch')
+
 rule search1_16s_bin_finds:
     input:
-        f"{config['output']}_16s_bin_finds_stats.tab",
-        f"{config['output']}_16s_bin_finds_seqs.fa"
+        protected(f"{output_name}_16s_bin_finds_stats.tab"),
+        protected(f"{output_name}_16s_bin_finds_seqs.fa")
 
 
 rule search2_asv_bin_matches:
     input:
-        f"{config['output']}_asv_bin_matches_stats.tab",
-        f"{config['output']}_asv_bin_matches_seqs.fa"
+        protected(f"{output_name}_asv_bin_matches_stats.tab"),
+        protected(f"{output_name}_asv_bin_matches_seqs.fa")
 
 
 rule stage1_set_output_fasta:
@@ -33,14 +48,14 @@ rule stage1_set_output_fasta:
         "{output}_asv_bin_matches_stats.tab"
     shell:
         """
-        cp input[0] output[0]
-        cp input[0] output[0]
+        cp {input[0]} {output[0]}
+        cp {input[1]} {output[1]}
         """
 
 
 rule stage2_set_output_fasta:
     input:
-        f"barrnap_and_{search_tool}_asvs.fna",
+        f"barrnap_and_{search_tool}_asvs_matching_seqs.fna",
         # TODO fix the stats
         f"stage2_asvs_{search_tool}.tab"
     output:
@@ -48,8 +63,8 @@ rule stage2_set_output_fasta:
         "{output}_16s_bin_finds_stats.tab"
     shell:
         """
-        cp input[0] output[0]
-        cp input[0] output[0]
+        cp {input[0]} {output[0]}
+        cp {input[1]} {output[1]}
         """
 
 
@@ -62,43 +77,38 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
     output:
         out_fasta_path = "barrnap_and_{tool}_asvs.fna"
     run:
-        #TODO use config.get(key)
         combine_mbstats_barrnap(input['other_fasta_path'],
                                 input['other_stats_path'],
                                 input['barrnap_fasta_path'],
                                 output['out_fasta_path'],
-                                min_pct_id = config['s1_min_pct_id'],
-                                min_length = config['s1_min_length'])
+                                min_pct_id = s1_min_pct_id,
+                                min_length = s1_min_length)
 
 
-if os.path.isdir(config['bins']):
-    bins_folder = config['bins']
+if os.path.isdir(bins_path):
+    bins_folder = bins_path
     path_to_combined_bins = LOCALY_COMBINED_BINS
 else:
     bins_folder = "None"
-    path_to_combined_bins = config['bins']
-
-
+    path_to_combined_bins = bins_path
 rule combine_input_fa:
     input:
         bins_folder
     output:
         LOCALY_COMBINED_BINS
     run:
-       # TODO add a file extention argument defautl to fa
-       # TODO Put all run args into funcs in other py
-       # TODO make absolut in the file type
-       for i in glob.glob(os.path.join(input, "*.{config['fasta_extention']}*")):
-           if i.endswith(f".{config['fasta_extention']}"):
-               shell("cat {i} >> {output}")
-           elif i.endswith('gz'):
-               shell("gzip -cd  {i} >> {output}")
+       input_list = glob.glob(
+                       os.path.join(input, "*.{fasta_extention}"))
+       if fasta_extention.endswith('gz'):
+               shell("gzip -cd  {input_list} >> {output}")
+       else:
+               shell("cat {input_list} >> {output}")
 
 
 rule mmseqs_stage1_search:
     input:
         path_to_combined_bins,
-        config['generic_16s'] # Query
+        generic_16s_path # Query
     output:
         directory("mmseqs_stage1_db"),
         "stage1_asvs_mmseqs.tab"
@@ -113,9 +123,9 @@ rule mmseqs_stage1_search:
              " {output[0]}/mmseqs_out"
              " temp"
              " --threads {threads}"
-            f" -s {config['s2_mmseqs_sensitivity']}"
+            f" -s {s2_mmseqs_sensitivity}"
              )
-       #   f" {config['s1_mmseqs_sensitivity']} \n" # Add sensitivity setting as f string
+       #   f" {s1_mmseqs_sensitivity} \n" # Add sensitivity setting as f string
        shell("mmseqs convertalis "
              " --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\'"
              " {output[0]}/query "
@@ -127,7 +137,7 @@ rule mmseqs_stage1_search:
 rule blast_stage1_search:
     input:
         path_to_combined_bins,
-        config['generic_16s'] # Query
+        generic_16s_path # Query
     output:
         directory("blast_stage1_db"),
         "stage1_asvs_blast.tab"
@@ -153,7 +163,7 @@ rule pullseq_header_name:
 rule mmseqs_stage2_search:
     input:
        "barrnap_and_mmseqs_asvs.fna", # Target
-       config['asv_seqs'] # Query
+       asv_seqs_path # Query
     output:
        directory("mmseqs_stage2_db"),
        "stage2_asvs_mmseqs.tab"
@@ -168,9 +178,9 @@ rule mmseqs_stage2_search:
              " {output[0]}/target"
              " {output[0]}/mmseqs_out"
              " temp"
-            f" -s {config['s2_mmseqs_sensitivity']}"
+            f" -s {s2_mmseqs_sensitivity}"
              )
-       #   f" {config['s1_mmseqs_sensitivity']} \n" # Add sensitivity setting as f string
+       #   f" {s1_mmseqs_sensitivity} \n" # Add sensitivity setting as f string
        shell("mmseqs convertalis "
              " --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\'"
              " {output[0]}/query "
@@ -181,25 +191,27 @@ rule mmseqs_stage2_search:
 
 rule stage2_filtering:
     input:
-       "barrnap_and_{tool}_asvs.fna",
-       "stage2_asvs_{tool}.tab"
+       "stage2_asvs_{tool}.tab",
+       "barrnap_and_{tool}_asvs.fna"
     output:
        "barrnap_and_{tool}_asvs_matching_seqs.fna"
     run:
-        mbstats = read_mbstats(input[0])
-        mbstats = filter_mdstats(mbstats,
-                        min_pct_id = config['s2_min_pct_id'],
-                        min_length = config['s2_min_length'],
-                        min_length_pct = config['min_length_pct'],
-                        max_gaps = config['max_gaps']
-                        )
-        filter_fasta_from_headers(input[1], output, mbstats['sseqid'].values)
+       filter_from_mbstats(
+                       stats_file=input[0],
+                       fasta_file_in=input[1],
+                       fasta_file_out=output[0],
+                       min_pct_id=s2_min_pct_id,
+                       min_length=s2_min_length,
+                       min_length_pct=s2_min_length_pct,
+                       max_gaps=s2_max_gaps,
+                       max_missmatch=s2_max_missmatch
+                       )
 
 
 rule blast_stage2_search:
     input:
        "barrnap_and_blast_asvs.fna", # Target
-        config['asv_seqs'], # Query
+        asv_seqs_path, # Query
     output:
         directory("blast_stage2_db"),
         "stage2_asvs_blast.tab"
