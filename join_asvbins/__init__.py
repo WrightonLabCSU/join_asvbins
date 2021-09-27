@@ -62,22 +62,23 @@ def join_asvbins(output:str, bins:str=None,
                  threads=1):
     """This is the main entry point"""
     output = os.path.abspath(output)
-    assert os.path.exists(os.path.dirname(output)), f"The output is in a directory that dose not exists, no such location {os.path.dirname(output)}"
+    assert os.path.exists(os.path.dirname(output)), \
+         "The output is in a directory that dose not exists," \
+        f" no such location {os.path.dirname(output)}"
     working_dir = os.path.abspath(working_dir)
     output = os.path.abspath(output)
     if bins is not None:
         bins = os.path.abspath(bins)
     if asv_seqs is not None:
         asv_seqs = os.path.abspath(asv_seqs)
-    targets = []
     if snake_rule is None:
-        if asv_seqs is not None:
-            targets.append("search2_asv_bin_matches")
-        if bin_16s_seqs is None:
-            targets.append("search1_16s_bin_finds")
-    else:
-        targets.append(snake_rule)
-    assert len(targets) > 0, "There are no tasks for join_asvbins to do."
+        if asv_seqs is not None and bin_16s_seqs is None:
+            snake_rule = 'all'
+        elif asv_seqs is not None:
+            snake_rule = "search2_asv_bin_matches"
+        elif bin_16s_seqs is None:
+            snake_rule = "search1_16s_bin_finds"
+    assert len(snake_rule) > 0, "There are no tasks for join_asvbins to do."
     " Check that all arguments are logical. For example, if you provided"
     " 16s from bins but not asvs then the progam has nothing to do."
     all_locals = locals()
@@ -85,7 +86,7 @@ def join_asvbins(output:str, bins:str=None,
               for i in CONFIG_VALUES
               if all_locals.get(i) is not None}
     if not no_filter:
-        # TODO when 3.9 is more popular replace this sintax
+        # TODO when python 3.9 is more popular replace this sintax
         config = dict(config, **{i:all_locals.get(i)
                                  for i in FILTER_VALUES
                                  if all_locals.get(i) is not None})
@@ -93,7 +94,7 @@ def join_asvbins(output:str, bins:str=None,
         # NOTE you need to pass this to dot -Tpdf > name.pdf sadly.
         #      Or is? we may be able to remove the graphiz dependency
         snakemake(get_package_path('Snakefile'),
-                  targets=targets, workdir=working_dir,
+                  targets=[snake_rule], workdir=working_dir,
                   config=config, forceall=True, printdag=print_dag,
                   printrulegraph=print_rulegraph, **snake_args)
         return

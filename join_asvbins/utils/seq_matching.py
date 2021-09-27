@@ -1,5 +1,4 @@
-"""Extract 16s from scaffolds"""
-
+"""Tools for extract 16s from scaffolds"""
 import os
 import pandas as pd
 import numpy as np
@@ -9,31 +8,50 @@ from skbio import Sequence
 
 
 def fasta_to_df(path, headers=None):
+    """
+    Convert a fasta to a dataframe
+
+    :param path: A path to a fasta
+    :param headers: Optional, headers to read from fasta
+    :returns: A dataframe
+    """
     if headers is not None:
-        df = pd.DataFrame({seq.metadata['id']:[seq.values]
+        dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
                            for seq in read_fa(path, format='fasta')
                            if seq.metadata['id'] in headers})
     else:
-        df = pd.DataFrame({seq.metadata['id']:[seq.values]
+        dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
                            for seq in read_fa(path, format='fasta')})
-    df = df.T
-    df.reset_index(inplace=True)
-    df.columns = ['header', 'seq']
-    return df
+    dafr = dafr.T
+    dafr.reset_index(inplace=True)
+    dafr.columns = ['header', 'seq']
+    return dafr
 
 
-def df_to_fasta(df:pd.DataFrame, path:str):
+def df_to_fasta(dafr:pd.DataFrame, path:str):
+    """
+    Convert a dataframe to a fasta
+
+    :param dafr: A dataframe containing 'seq', 'note' and 'header' fields
+    :param path: A path to a fasta
+    """
     seqs = (Sequence(x['seq'],
                      metadata={"id": x["header"],
                                'description': x["note"]}
                      )
-            for _, x in df.iterrows())
+            for _, x in dafr.iterrows())
     write_fa(seqs, 'fasta', path)
 
 
+def filter_fasta_from_headers(in_fasta_path, out_fasta_path:str, headers):
+    """
 
-def filter_fasta_from_headers(in_fasta_path, out_fasta_path:str, headers,
-                      report_prath:str=None, show_report=False):
+    Filter a fast to a list of headers
+
+    :param in_fasta_path: Path to unfilterd fasta
+    :param out_fasta_path: Path to filtered fast
+    :param headers: Headers to filter by
+    """
     headers = set(headers)
     if out_fasta_path is not None:
         write_fa((seq for seq in read_fa(in_fasta_path, format='fasta')
@@ -58,38 +76,42 @@ def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
     return joined
 
 
-def process_barrnap(data:pd.DataFrame) -> pd.DataFrame:
+def process_barfasta(data:pd.DataFrame) -> pd.DataFrame:
     data.rename(columns={'header': 'barrnap_header'}, inplace=True)
-    data[['header', 'start']] = data['barrnap_header'].str.split(':', expand=True)
+    data[['header', 'start']] = \
+        data['barrnap_header'].str.split(':', expand=True)
     data[['start', 'stop']] = data['start'].str.split('-', expand=True)
     data[['start', 'stop']] = data[['start', 'stop']].astype(int)
     data = data.groupby('header').apply(merge_duplicate_seqs).\
         reset_index(drop=True)
     # extra assert statement to cover by back
-    assert sum((data['stop'] - data['start']) != \
-               data['seq'].apply(len)) == 0, \
+    assert sum(
+        (data['stop'] - data['start']) != data['seq'].apply(len)
+        ) == 0, \
         "The length of the sequence dose not match the size from the indexes."
     return data
 
 
 def read_mbstats(stats_path:str) -> pd.DataFrame:
+    """
+    Read the tab delimited mmseqs or blast file with its very specific format.
+
+    :param stats_path: The path to the formatted statistics
+    :returns: A dataframe with proper format
+    """
     stats = pd.read_csv(stats_path, header=None, sep='\t', names=[
         "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
         "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen", "slen"])
     return stats
 
-def read_mbstats_and_fasta(fasta_path:str, stats_path:str) -> pd.DataFrame:
-    fasta = fasta_to_df(fasta_path)
-    # get headers here:
-    # https://www.metagenomics.wiki/tools/blast/blastn-output-format-6
-    stats = read_mbstats(stats_path)
-    data = pd.merge(fasta, stats, right_on='sseqid', left_on='header',
-                    how='inner')
-    return data
-
 
 def get_mbstats_dups(data):
-    """Check mmseqs or blast stats data for dups"""
+    """
+    Check mmseqs or blast stats data for dups
+
+    :param data:
+    :returns:
+    """
     dups = data[data['sseqid'].duplicated(keep=False)]
     dups = dups[[i for i in dups.columns
                  if i not in ['seq', 'sseqid', 'qseqid']]]
@@ -97,9 +119,6 @@ def get_mbstats_dups(data):
 
 
 def process_mbdata(data:pd.DataFrame, headers=None) -> pd.DataFrame:
-    # TODO you may want to use this again
-    # get_mbstats_dups(data)
-    # Remove mbstats data dups keeping the longest string
     data = data.sort_values('length', ascending=False).\
         drop_duplicates('sseqid')
     # Keep only elements of blast_fasta_list that are in headers object
@@ -151,8 +170,19 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
 
 
 def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
-                    min_length_pct:float=None, max_gaps:int=None,
-                    max_missmatch:int=None):
+                   min_length_pct:float=None, max_gaps:int=None,
+                   max_missmatch:int=None):
+    """
+    Creates and then applies a filter for mmseqs or blast statistics
+
+    :param data: Data to be filter must be in a computable blast style format
+    :param min_pct_id: Optional filter
+    :param min_length: Optional filter
+    :param min_length_pct: Optional filter
+    :param max_gaps: Optional filter
+    :param max_missmatch: Optional filter
+    :returns: Filtered data
+    """
     # NOTE For perfect matches the Alignment Length equals the DB allele Length so the percent should be length/slen.
     data_checks = []
     if max_gaps is not None:
@@ -171,11 +201,22 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
         axis=1)
         ]
 
-# data.apply( lambda x: ((x['gapopen'] <= max_gaps) if max_gaps is not None else True) and ((x['mismatch'] <= max_missmatch) if max_missmatch is not None else True) and ((x['length'] >= min_length) if min_length is not None else True) and ((x['pident'] >= min_pct_id) if min_pct_id is not None else True) and ((((x['length'] / x['slen']) * 100) >= min_length_pct) if min_length_pct is not None else True), axis=1)
 
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
-                            min_pct_id:float=None, min_length:int=None):
+                            out_barstats_path:str, min_pct_id:float=None,
+                            min_length:int=None, search_tool:str='Other'):
+    """
+    Combine the statistics from mmseqs or blast with the output from barrnap.
+
+    :param mbstats_fasta_path: Path to mmseqs or blast fasta
+    :param mbstats_stats_path: Path to mmseqs or blast statistics, see docs for format requirements
+    :param barrnap_fasta_path: Path to barrnap fasta
+    :param out_fasta_path: Path for an ouput
+    :param min_pct_id: A filter for the pct identity, only for the non barrnap output
+    :param min_length: A filter for min_length, only for the non barrnap output
+    :param search_tool: The name of the search_tool that is not barrnap
+    """
     mbstats = read_mbstats(mbstats_stats_path)
     mbstats = filter_mdstats(mbstats,
                              min_pct_id = min_pct_id,
@@ -184,11 +225,75 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     mbdata = pd.merge(mbseqs, mbstats, right_on='sseqid', left_on='header',
                         how='inner')
     mbdata = process_mbdata(mbdata)
-    barrnap = fasta_to_df(barrnap_fasta_path)
-    barrnap = process_barrnap(barrnap)
-    data = combine_fasta(mbdata, barrnap)
+    barfasta = fasta_to_df(barfasta_fasta_path)
+    barfasta = process_barfasta(barfasta)
+    data[['header', 'start', 'stop']].to_csv(out_barstats_path,
+                                             sep='\t', index=False)
+    data = combine_fasta(mbdata, barfasta)
     df_to_fasta(data, out_fasta_path)
-    df_to_fasta(data, 'test.fa')
+
+
+# TODO Decide if we want to split this.
+def stage1_statistics(mbstats_path:str, barstats_path:str, output_path:str,
+                      search_tool:str):
+    mbstats = read_mbstats(mbstats_path)
+    # 'corected_barrnap_stat.tsv'
+    barstats = read_mbstats(barstats_path, sep='\t')
+    barstats = barstats_reformat(barstats, qname='16s')
+    mbstats = mbstats_reformat(mbstats, search_tool, '16s')
+    stats = pd.concat([mbstats, barstats])
+    stats.to_csv(output_path, sep='\t', index=False)
+
+
+def barstats_reformat(barstats_in:pd.DataFrame, qname:str):
+    output_colums = {
+        "header": f"{qname}_header",
+        "start":  f"{qname}_start",
+        "end":    f"{qname}_end",
+    }
+    barstats_out = barstats_in.copy()
+    barstats_out.rename(columns=output_colums, inplace=True)
+    barstats_out['search_tool'] = 'Barrnap'
+
+
+def stage2_statistics(mbstats_path, output_path, search_tool):
+    mbstats = read_mbstats(mbstats_path)
+    stats = mbstats_reformat(mbstats, search_tool, 'asv')
+    stats.to_csv(output_path, sep='\t', index=False)
+
+
+def mbstats_reformat(mbstats_in:pd.DataFrame, search_tool:str, qname:str):
+    output_colums = {
+        "qseqid":   f"{qname}_header",
+        "sseqid":    "bin_header",
+        "pident":    "pident",
+        "length":    "length",
+        "mismatch":  "mismatch",
+        "gapopen":   "gapopen",
+        "qstart":   f"{qname}_start",
+        "qend":     f"{qname}_end",
+        "sstart":    "bin_start",
+        "send":      "bin_end",
+        "evalue":    "evalue",
+        "bitscore":  "bitscore"
+    }
+    mbstats_out = mbstats[output_colums.keys()].copy()
+    mbstats_out.rename(columns=output_colums, inplace=True)
+    if search_tool == 'mmseqs':
+        mbstats_out['search_tool'] = 'MMseqs2'
+    elif search_tool == 'blast':
+        mbstats_out['search_tool'] = 'BLAST'
+    else:
+        raise ValueError(f"The provided search tool name {search_tool}"
+                          " is not recognized.")
+    return mbstats_out
+
+
+def load_barrnap_gtf(gtf_path):
+    gtf_columns = ["seqname", "source", "feature", "start", "end", "score",
+                   "strand", "frame", "attribute"]
+    barstats = pd.read_csv(gtf_path, delimiter="\t", names=gtf_columns)
+    return barstats
 
 
 def filter_from_mbstats(stats_file:str, fasta_file_in:str, fasta_file_out:str,
@@ -210,46 +315,3 @@ def filter_from_mbstats(stats_file:str, fasta_file_in:str, fasta_file_out:str,
 
 
 
-# TODO formalize these tests
-#     mbstats.loc['gapopen', 1]
-#     mbstats.loc[['gapopen', 212129]]
-#     mbstats.loc[212129, 'gapopen'] = 1
-#     filter_data_set(mbstats)
-#     filter_data_set(mbstats, max_gaps=1)
-#     mbstats['mismatch']
-#     filter_data_set(mbstats, max_missmatch=7)
-#     mbstats['length']
-#     filter_data_set(mbstats, min_length=49)
-#     mbstats['sseqid']
-#     mbstats['length'] / mbstats['slen']
-#     filter_data_set(mbstats, min_length_pct=1)
-#     mbstats['pident']
-#     filter_data_set(mbstats, min_pct_id=84)
-#     filter_data_set(mbstats, min_pct_id=84, max_gaps=0)
-
-# from sys import getsizeof
-# def human_readable_size(size, decimal_places=2):
-#     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
-#         if size < 1024.0 or unit == 'PiB':
-#             break
-#         size /= 1024.0
-#     return f"{size:.{decimal_places}f} {unit}"
-# human_readable_size(getsizeof(mbseqs))
-
-# combine_mbstats_barrnap(input['other_stats_path'],
-#                         input['barrnap_fasta_path'], output['out_fasta_path'])
-# combine_mbstats_barrnap("stage1_asvs_mmseqs.tab", "barrnap_fastafile-16S.fna")
-#         combine_mbstats_barrnap(input['other_fasta_path'], input['other_stats_path'],
-#                 input['barrnap_fasta_path'], output['out_fasta_path'])
-# blast_fasta_path = "../../results/original_approach/blast_fastafile-16S.fna"
-# blast_stats_path = "../../results/original_approach/blast_fastafile-16S.txt"
-# barrnap_fasta_path = \
-#     "../../results/original_approach/barrnap_fastafile-16S.fna"
-# out_test_path = "../../results/original_approach/new_output.fa"
-# blast = read_and_process_blast(blast_fasta_path, blast_stats_path)
-# blast_headers = read_and_process_blast(blast_fasta_path, blast_stats_path,
-# headers=HEADERS)
-# barrnap = read_and_process_barrnap(barrnap_fasta_path)
-# data = combine_fasta(blast, barrnap)
-# data = combine_fasta(blast_headers, barrnap)
-# df_to_fasta(data, out_test_path)

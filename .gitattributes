@@ -1,1 +1,1 @@
-scripts/data/silva_clusterd_95pct_all_seqs.fasta filter=lfs diff=lfs merge=lfs -text
+join_asvbins/data/silva_clusterd_95pct_rep_seq.fasta filter=lfs diff=lfs merge=lfs -text

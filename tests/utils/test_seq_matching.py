@@ -1,7 +1,37 @@
 import pytest
+import random
+from itertools import combinations
 import pandas as pd
+from join_asvbins.utils.seq_matching import process_barrnap, filter_mdstats, \
+    fasta_to_df, df_to_fasta, filter_fasta_from_headers
 
-from join_asvbins.utils.seq_matching import process_barrnap
+
+def test_filter_mdstats():
+    test_values = {
+    "max_gaps": 2,
+    "max_missmatch": 2,
+    "min_length": 300,
+    "min_pct_id": 50,
+    "min_length_pct": 50
+    }
+    input_df = pd.DataFrame({
+       "gapopen"  : [  3,   2,   1,   0,   2,   2],
+       "mismatch" : [  2,   3,   1,   1,   2,   2],
+       "length"   : [400, 400, 148, 300, 300, 300],
+       "slen"     : [500, 800, 200, 600, 601, 600],
+       "pident"   : [100,  50,  60,  40,  80,  60],
+    }, index= ["max_gaps", "max_missmatch", "min_length", "min_pct_id",
+               "min_length_pct", "None"])
+    for r in range(len(test_values)):
+        for i in combinations(test_values, r):
+            out = filter_mdstats(input_df, **{j:test_values[j] for j in i})
+            out = set(out.index)
+            expect = {'None'}.union({k for k in test_values if k not in i})
+            assert len(out - expect) == 0, \
+               f"The test case/cases {out - expect} wrongfully NOT filtered"
+            assert len(expect - out) == 0, \
+                f"The test case/cases {expect - out} wrongfully filtered"
+
 
 def test_barnap_procesing():
     input_df = pd.DataFrame({
@@ -24,5 +54,33 @@ def test_barnap_procesing():
     output_df = output_df[['header','barrnap_header', 'seq']]
     pd.testing.assert_frame_equal(output_df, expect_df,
                                   check_index_type=False, check_names=False)
+
+
+@pytest.fixture(scope="session")
+def temp_fasta_protien_100(tmpdir_factory):
+    codes = "APBQCRDSETFUGVHWIYKZLXMN"
+    path = str(tmpdir_factory.mktemp('fasta').join('temp.fna'))
+    headers = {f">sequence-{i}:{i+10}" for i in range(100)}
+    with open(path, 'w') as out :
+        for i in headers:
+            out.write(i + "\n")
+            seqlen = int(i.split(':')[1])
+            out.write(
+                "".join(random.choice(codes) for j in range(seqlen)) + "\n")
+    return path
+
+
+def test_fasta_to_df_no_filter(temp_fasta_protien_100):
+    data = fasta_to_df(temp_fasta_protien_100)
+    print(data)
+    headers = {f"sequence-{i}:{i+10}" for i in range(100)}
+    assert set(data['header'].values) == headers, \
+        "The header was not correctly read"
+    expect_len = data['header'].str.split(':', expand=True)[1].astype(int)
+    output_len = data['seq'].apply(len)
+    assert expect_len.equals(output_len), \
+        "The header was not correctly matched"
+
+
 
 
