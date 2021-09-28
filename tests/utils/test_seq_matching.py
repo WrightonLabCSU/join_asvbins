@@ -1,12 +1,13 @@
-import pytest
 import random
 from itertools import combinations
+import pytest
 import pandas as pd
-from join_asvbins.utils.seq_matching import process_barrnap, filter_mdstats, \
+from join_asvbins.utils.seq_matching import process_barfasta, filter_mdstats, \
     fasta_to_df, df_to_fasta, filter_fasta_from_headers
 
 
 def test_filter_mdstats():
+    """Test test_filter_mdstats"""
     test_values = {
     "max_gaps": 2,
     "max_missmatch": 2,
@@ -22,8 +23,8 @@ def test_filter_mdstats():
        "pident"   : [100,  50,  60,  40,  80,  60],
     }, index= ["max_gaps", "max_missmatch", "min_length", "min_pct_id",
                "min_length_pct", "None"])
-    for r in range(len(test_values)):
-        for i in combinations(test_values, r):
+    for row in range(len(test_values)):
+        for i in combinations(test_values, row):
             out = filter_mdstats(input_df, **{j:test_values[j] for j in i})
             out = set(out.index)
             expect = {'None'}.union({k for k in test_values if k not in i})
@@ -34,6 +35,7 @@ def test_filter_mdstats():
 
 
 def test_barnap_procesing():
+    """Test test_barnap_procesing"""
     input_df = pd.DataFrame({
         1: ['a:0-3',       'abc'],
         2: ['b:0-3',       'abc'],
@@ -50,7 +52,7 @@ def test_barnap_procesing():
     }, index=['header', 'barrnap_header', 'seq']).T
     input_df['seq'] = input_df['seq'].apply(list)
     expect_df['seq'] = expect_df['seq'].apply(list)
-    output_df = process_barrnap(input_df)
+    output_df = process_barfasta(input_df)
     output_df = output_df[['header','barrnap_header', 'seq']]
     pd.testing.assert_frame_equal(output_df, expect_df,
                                   check_index_type=False, check_names=False)
@@ -58,6 +60,7 @@ def test_barnap_procesing():
 
 @pytest.fixture(scope="session")
 def temp_fasta_protien_100(tmpdir_factory):
+    """Creates a fake protein file"""
     codes = "APBQCRDSETFUGVHWIYKZLXMN"
     path = str(tmpdir_factory.mktemp('fasta').join('temp.fna'))
     headers = {f">sequence-{i}:{i+10}" for i in range(100)}
@@ -71,8 +74,8 @@ def temp_fasta_protien_100(tmpdir_factory):
 
 
 def test_fasta_to_df_no_filter(temp_fasta_protien_100):
+    """Test fasta_to_df_no_filter"""
     data = fasta_to_df(temp_fasta_protien_100)
-    print(data)
     headers = {f"sequence-{i}:{i+10}" for i in range(100)}
     assert set(data['header'].values) == headers, \
         "The header was not correctly read"
@@ -82,5 +85,21 @@ def test_fasta_to_df_no_filter(temp_fasta_protien_100):
         "The header was not correctly matched"
 
 
+def test_filter_fasta_from_headers(temp_fasta_protien_100, tmp_path):
+    """Test filter_fasta_from_headers"""
+    headers = {f"sequence-{i}:{i+10}" for i in range(100)}
+    sample_headers = set(random.sample(headers, 20))
+    filtered_path = str(tmp_path / 'filter.fa')
+    filter_fasta_from_headers(temp_fasta_protien_100,
+                              filtered_path, sample_headers)
+    data = fasta_to_df(filtered_path)
+    assert set(data['header'].values) == sample_headers, \
+        "The header was not correctly read"
+    expect_len = data['header'].str.split(':', expand=True)[1].astype(int)
+    output_len = data['seq'].apply(len)
+    assert expect_len.equals(output_len), \
+        "The header was not correctly matched"
+
+def test_
 
 

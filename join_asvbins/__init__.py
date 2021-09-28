@@ -23,7 +23,7 @@ CONFIG_VALUES = {
     "blast": False,
     "fasta_extention": 'fa',
     "generic_16s":
-       get_package_path("data/silva_clusterd_95pct_all_seqs.fasta")
+       get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
 }
 
 

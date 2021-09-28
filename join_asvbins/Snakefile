@@ -60,27 +60,28 @@ rule stage1_set_output_fasta:
     input:
         f"barrnap_and_{search_tool}_asvs.fna"
     output:
-        protected("{output}_asv_bin_matches_seqs.fa")
+        protected("{output}_16s_bin_finds_seqs.fa")
     shell:
         """
         cp {input} {output}
         """
 
+
 rule stage1_set_output_stats:
     input:
         f"stage1_asvs_{search_tool}.tab",
         f"barrnap_stats_excluding_{search_tool}.tab"
-
     output:
-        protected("{output}_asv_bin_matches_stats.tab")
+        protected("{output}_16s_bin_finds_stats.tab")
     run:
-        stage1_statistics(input[0], input[1], output, search_tool)
+        stage1_statistics(input[0], input[1], output[0], search_tool)
+
 
 rule stage2_set_output_fasta:
     input:
         f"barrnap_and_{search_tool}_asvs_matching_seqs.fna"
     output:
-        protected("{output}_16s_bin_finds_seqs.fa")
+        protected("{output}_asv_bin_matches_seqs.fa")
     shell:
         """
         cp {input} {output}
@@ -90,12 +91,11 @@ rule stage2_set_output_stats:
     input:
         f"stage2_asvs_{search_tool}.tab"
     output:
-        protected("{output}_16s_bin_finds_stats.tab")
+        protected("{output}_asv_bin_matches_stats.tab")
     run:
-        stage2_statistics(input, output, search_tool)
+        stage2_statistics(input[0], output[0], search_tool)
 
 rule combine_barrnap_with_other: # where other is blast or mmseqs
-    # TODO change tool to search_tool
     input:
         other_fasta_path = "stage1_asvs_{tool}_matches.fna",
         other_stats_path =  "stage1_asvs_{tool}.tab",
@@ -137,7 +137,6 @@ rule mmseqs_stage1_search:
     run:
        # TODO Split out the db creation, into other rouls if it makes sense seeing as you may need to limit cores
        # TODO put this in a better format
-       breakpoint()
        shell("mkdir {output[0]}")
        shell("mmseqs createdb {input[0]} {output[0]}/target")
        shell("mmseqs createdb {input[1]} {output[0]}/query")
@@ -156,6 +155,7 @@ rule mmseqs_stage1_search:
              " {output[0]}/target "
              " {output[0]}/mmseqs_out "
              " {output[1]}")
+
 
 rule blast_stage1_search:
     input:

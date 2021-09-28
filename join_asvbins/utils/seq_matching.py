@@ -43,7 +43,9 @@ def df_to_fasta(dafr:pd.DataFrame, path:str):
     write_fa(seqs, 'fasta', path)
 
 
-def filter_fasta_from_headers(in_fasta_path, out_fasta_path:str, headers):
+# TODO Look into how you type hint the headers
+# TODO handel empty files
+def filter_fasta_from_headers(in_fasta_path:str, out_fasta_path:str, headers):
     """
 
     Filter a fast to a list of headers
@@ -53,10 +55,9 @@ def filter_fasta_from_headers(in_fasta_path, out_fasta_path:str, headers):
     :param headers: Headers to filter by
     """
     headers = set(headers)
-    if out_fasta_path is not None:
-        write_fa((seq for seq in read_fa(in_fasta_path, format='fasta')
-                  if seq.metadata['id'] in headers),
-                 'fasta', out_fasta_path)
+    write_fa((seq for seq in read_fa(in_fasta_path, format='fasta')
+              if seq.metadata['id'] in headers),
+             'fasta', out_fasta_path)
 
 
 def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
@@ -202,6 +203,7 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
         ]
 
 
+#TODO Add a handler for the case where blast/mmseqs or barrnap don't return matches
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
                             out_barstats_path:str, min_pct_id:float=None,
@@ -212,7 +214,8 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     :param mbstats_fasta_path: Path to mmseqs or blast fasta
     :param mbstats_stats_path: Path to mmseqs or blast statistics, see docs for format requirements
     :param barrnap_fasta_path: Path to barrnap fasta
-    :param out_fasta_path: Path for an ouput
+    :param out_fasta_path: Path for the combined fasta file
+    :param out_barstats_path: Path for the barrnap stats post de duplication
     :param min_pct_id: A filter for the pct identity, only for the non barrnap output
     :param min_length: A filter for min_length, only for the non barrnap output
     :param search_tool: The name of the search_tool that is not barrnap
@@ -225,10 +228,10 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     mbdata = pd.merge(mbseqs, mbstats, right_on='sseqid', left_on='header',
                         how='inner')
     mbdata = process_mbdata(mbdata)
-    barfasta = fasta_to_df(barfasta_fasta_path)
+    barfasta = fasta_to_df(barrnap_fasta_path)
     barfasta = process_barfasta(barfasta)
-    data[['header', 'start', 'stop']].to_csv(out_barstats_path,
-                                             sep='\t', index=False)
+    barfasta[['header', 'start', 'stop']].to_csv(out_barstats_path,
+                                                 sep='\t', index=False)
     data = combine_fasta(mbdata, barfasta)
     df_to_fasta(data, out_fasta_path)
 
@@ -238,14 +241,14 @@ def stage1_statistics(mbstats_path:str, barstats_path:str, output_path:str,
                       search_tool:str):
     mbstats = read_mbstats(mbstats_path)
     # 'corected_barrnap_stat.tsv'
-    barstats = read_mbstats(barstats_path, sep='\t')
+    barstats = pd.read_csv(barstats_path, sep='\t')
     barstats = barstats_reformat(barstats, qname='16s')
     mbstats = mbstats_reformat(mbstats, search_tool, '16s')
     stats = pd.concat([mbstats, barstats])
     stats.to_csv(output_path, sep='\t', index=False)
 
 
-def barstats_reformat(barstats_in:pd.DataFrame, qname:str):
+def barstats_reformat(barstats_in:pd.DataFrame, qname:str)->pd.DataFrame:
     output_colums = {
         "header": f"{qname}_header",
         "start":  f"{qname}_start",
@@ -254,6 +257,7 @@ def barstats_reformat(barstats_in:pd.DataFrame, qname:str):
     barstats_out = barstats_in.copy()
     barstats_out.rename(columns=output_colums, inplace=True)
     barstats_out['search_tool'] = 'Barrnap'
+    return barstats_out
 
 
 def stage2_statistics(mbstats_path, output_path, search_tool):
@@ -277,7 +281,7 @@ def mbstats_reformat(mbstats_in:pd.DataFrame, search_tool:str, qname:str):
         "evalue":    "evalue",
         "bitscore":  "bitscore"
     }
-    mbstats_out = mbstats[output_colums.keys()].copy()
+    mbstats_out = mbstats_in[output_colums.keys()].copy()
     mbstats_out.rename(columns=output_colums, inplace=True)
     if search_tool == 'mmseqs':
         mbstats_out['search_tool'] = 'MMseqs2'
