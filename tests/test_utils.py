@@ -2,7 +2,7 @@ import random
 from itertools import combinations
 import pytest
 import pandas as pd
-from join_asvbins.utils.seq_matching import process_barfasta, filter_mdstats, \
+from join_asvbins.utils import process_barfasta, filter_mdstats, \
     fasta_to_df, df_to_fasta, filter_fasta_from_headers
 
 
@@ -100,6 +100,5 @@ def test_filter_fasta_from_headers(temp_fasta_protien_100, tmp_path):
     assert expect_len.equals(output_len), \
         "The header was not correctly matched"
 
-def test_
 
 

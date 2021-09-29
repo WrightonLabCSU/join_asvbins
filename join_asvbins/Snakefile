@@ -3,8 +3,8 @@ import os
 import glob
 import pathlib
 import pandas as pd
-from join_asvbins.utils.seq_matching import combine_mbstats_barrnap, \
-    filter_fasta_from_headers, filter_from_mbstats, stage1_statistics, \
+from join_asvbins.snake_functions import combine_mbstats_barrnap, \
+    pullseqs_header_name_from_tab, filter_from_mbstats, stage1_statistics, \
     stage2_statistics
 
 LOCALY_COMBINED_BINS = "all_bins_combined"
@@ -50,6 +50,7 @@ rule search1_16s_bin_finds:
         f"{output_name}_16s_bin_finds_seqs.fa"
 
 
+#TODO split bins
 rule search2_asv_bin_matches:
     input:
         f"{output_name}_asv_bin_matches_stats.tab",
@@ -177,11 +178,10 @@ rule pullseq_header_name:
     output:
         "{level}_asvs_{tool}_matches.fna"
     run:
-       shell("awk '{{print $2}}' {input[1]} > {wildcards.level}_asvs_{wildcards.tool}_headers.txt")
-       headers = pd.read_csv(f"{wildcards.level}_asvs_{wildcards.tool}_headers.txt",
-                          sep='\n', header=None, names=["head"])["head"].values
-       filter_fasta_from_headers(f"{input[0]}", f"{output}", headers)
-
+       pullseqs_header_name_from_tab(in_fasta_path=input[0],
+                                     out_fasta_path=output[0],
+                                     tab_file_path=input[1],
+                                     header_column='sseqid')
 
 rule mmseqs_stage2_search:
     input:
