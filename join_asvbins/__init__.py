@@ -21,6 +21,7 @@ CONFIG_VALUES = {
     "output": None,
     "asv_seqs": None,
     "blast": False,
+    "allow_empty": False,
     "fasta_extention": 'fa',
     "generic_16s":
        get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")

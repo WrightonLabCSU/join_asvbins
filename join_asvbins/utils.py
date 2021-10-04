@@ -6,6 +6,12 @@ from skbio import write as write_fa
 from skbio import read as read_fa
 from skbio import Sequence
 
+# This is the header format for blast and mmseqs stats
+MBSTATS_NAMES=[
+    "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
+    "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen",
+    "slen"]
+
 
 def fasta_to_df(path, headers=None):
     """
@@ -15,13 +21,21 @@ def fasta_to_df(path, headers=None):
     :param headers: Optional, headers to read from fasta
     :returns: A dataframe
     """
-    if headers is not None:
-        dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
-                           for seq in read_fa(path, format='fasta')
-                           if seq.metadata['id'] in headers})
-    else:
-        dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
-                           for seq in read_fa(path, format='fasta')})
+    if os.stat(path).st_size == 0:
+        return pd.DataFrame()
+    try:
+        if headers is not None:
+            dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
+                               for seq in read_fa(path, format='fasta')
+                               if seq.metadata['id'] in headers})
+        else:
+            dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
+                               for seq in read_fa(path, format='fasta')})
+    except ValueError:
+        warnings.warn('Some fasta file was not read, posbly it is the wrong'
+                      'format.',
+                      SintaxWarning)
+        return pd.DataFrame()
     dafr = dafr.T
     dafr.reset_index(inplace=True)
     dafr.columns = ['header', 'seq']
@@ -75,7 +89,6 @@ def process_barfasta(data:pd.DataFrame) -> pd.DataFrame:
         "The length of the sequence dose not match the size from the indexes."
     return data
 
-
 def read_mbstats(stats_path:str) -> pd.DataFrame:
     """
     Read the tab delimited mmseqs or blast file with its very specific format.
@@ -83,9 +96,7 @@ def read_mbstats(stats_path:str) -> pd.DataFrame:
     :param stats_path: The path to the formatted statistics
     :returns: A dataframe with proper format
     """
-    stats = pd.read_csv(stats_path, header=None, sep='\t', names=[
-        "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
-        "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qlen", "slen"])
+    stats = pd.read_csv(stats_path, header=None, sep='\t', names=MBSTATS_NAMES)
     return stats
 
 
@@ -186,17 +197,35 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
         ]
 
 
-
-def barstats_reformat(barstats_in:pd.DataFrame, qname:str)->pd.DataFrame:
+def barstats_reformat(barstats_corrected:pd.DataFrame,
+                      barstats_raw:pd.DataFrame,
+                      qname:str)->pd.DataFrame:
     output_colums = {
-        "header": f"{qname}_header",
-        "start":  f"{qname}_start",
-        "end":    f"{qname}_end",
+        "seqname":   "bin_header",
+        "start":     "bin_start",
+        "end":       "bin_end",
+        "source":    "search_tool",
+        "score":     "barrnap_e-value",
+        "attribute": "barrnap_attribute"
     }
-    barstats_out = barstats_in.copy()
+    barstats_raw = barstats_raw[[i for i in output_colums]]
+    barstats_raw['name'] = barstats_raw['seqname'].\
+       str.split(':', expand=True)[0]
+    barstats_corrected = barstats_corrected[['header']]
+    barstats_corrected.rename(columns = {"header": "name"},
+                              inplace=True)
+    barstats_out = pd.merge(barstats_corrected, barstats_raw, on='name',
+                            how='outer')
     barstats_out.rename(columns=output_colums, inplace=True)
-    barstats_out['search_tool'] = 'Barrnap'
     return barstats_out
+
+
+def read_gff(gff_path:str) -> pd.DataFrame:
+    out_df = pd.read_csv(gff_path, sep='\t',
+                         names=["seqname", "source", "feature", "start",
+                                "end", "score", "strand", "frame",
+                                "attribute"])
+    return out_df
 
 
 def mbstats_reformat(mbstats_in:pd.DataFrame, search_tool:str, qname:str):

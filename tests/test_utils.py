@@ -85,6 +85,13 @@ def test_fasta_to_df_no_filter(temp_fasta_protien_100):
         "The header was not correctly matched"
 
 
+def test_empty_fasta_to_df(tmp_path):
+    empty_file = tmp_path / "emptyfile"
+    empty_file.touch()
+    empty_df = get_stage1_barrnap_fasta(str(empty_file))
+    assert empty_df.empty, "The program will fail if barrnap fails"
+
+
 def test_filter_fasta_from_headers(temp_fasta_protien_100, tmp_path):
     """Test filter_fasta_from_headers"""
     headers = {f"sequence-{i}:{i+10}" for i in range(100)}
