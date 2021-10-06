@@ -83,15 +83,15 @@ def get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path):
     return mbdata
 
 
-def save_barnap_stats(barfasta, out_barstats_path):
-    """
-    save barrnap stats, run process_barfasta first!
-
-    :param barfasta:
-    :param out_barstats_path:
-    """
-    barfasta[['header', 'start', 'stop']].to_csv(out_barstats_path,
-                                             sep='\t', index=False)
+# def save_barnap_stats(barfasta, out_barstats_path):
+#     """
+#     save barrnap stats, run process_barfasta first!
+#
+#     :param barfasta:
+#     :param out_barstats_path:
+#     """
+#     barfasta[['header', 'start', 'stop']].to_csv(out_barstats_path,
+#                                              sep='\t', index=False)
 
 
 def process_barfasta(data:pd.DataFrame) -> pd.DataFrame:

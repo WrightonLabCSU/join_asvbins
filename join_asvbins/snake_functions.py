@@ -9,9 +9,9 @@ from join_asvbins.utils import df_to_fasta, fasta_to_df, read_mbstats, \
 #TODO Add a handler for the case where blast/mmseqs or barrnap don't return matches
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
-                            out_barstats_path:str, min_pct_id:float=None,
-                            min_length:int=None, search_tool:str='Other',
-                            allow_empty:bool=False):
+                            out_stats_path:str, barstats_path:str,
+                            min_pct_id:float=None, min_length:int=None,
+                            search_tool:str='Other', allow_empty:bool=False):
     """
     Combine the statistics from mmseqs or blast with the output from barrnap.
 
@@ -19,7 +19,7 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     :param mbstats_stats_path: Path to mmseqs or blast statistics, see docs for format requirements
     :param barrnap_fasta_path: Path to barrnap fasta
     :param out_fasta_path: Path for the combined fasta file
-    :param out_barstats_path: Path for the barrnap stats post de duplication
+    :param barstats_path: Path for the barrnap stats gff
     :param min_pct_id: A filter for the pct identity, only for the non barrnap output
     :param min_length: A filter for min_length, only for the non barrnap output
     :param search_tool: The name of the search_tool that is not barrnap
@@ -47,8 +47,10 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                              " save time.")
         else:
             data = process_barfasta(barfasta)
-            save_barnap_stats(barfasta, out_barstats_path)
+            # save_barnap_stats(barfasta, out_barstats_path)
             df_to_fasta(data, out_fasta_path)
+            make_stage1_statistics(out_stats_path, search_tool, barfasta=data,
+                                   barstats_path=barstats_path)
             return
     if barfasta.empty:
         if not allow_empty:
@@ -61,13 +63,32 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
         else:
             data = get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path)
             df_to_fasta(data, out_fasta_path)
+            make_stage1_statistics(out_stats_path, search_tool, mbstats=data)
             return
     mbdata = get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path)
     barfasta = process_barfasta(barfasta)
-    save_barnap_stats(barfasta, out_barstats_path)
+    # save_barnap_stats(barfasta, out_barstats_path)
     data = combine_fasta(mbdata, barfasta)
     df_to_fasta(data, out_fasta_path)
+    make_stage1_statistics(out_stats_path, search_tool, mbstats=mbstats,
+                           barfasta=barfast, barstats_path=barstats_path)
 
+def make_stage1_statistics(output_path:str, search_tool:str,
+                           mbstats:pd.DataFrame=None,
+                           barfasta:pd.DataFrame=None, barstats_path:str=None):
+    if barfasta is not None:
+        barstats_corrected = barfasta[['header', 'start', 'stop']]
+        barstats = barstats_reformat(barstats_corrected, barstats_raw, 'bin')
+        if mbstats is None:
+            barstats.to_csv(output_path, sep='\t', index=False)
+            return
+    if mbstats is not None:
+        mbstats = mbstats_reformat(mbstats, search_tool, '16s')
+        if barstats is None:
+            mbstats.to_csv(output_path, sep='\t', index=False)
+            return
+    stats = pd.concat([mbstats, barstats])
+    stats.to_csv(output_path, sep='\t', index=False)
 
 def stage1_statistics(mbstats_path:str, barstats_corrected_path:str, barstats_raw_path:str,
                       output_path:str, search_tool:str):

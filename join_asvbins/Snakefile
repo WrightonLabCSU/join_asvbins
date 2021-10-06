@@ -58,37 +58,25 @@ rule search2_asv_bin_matches:
         "asv_bin_matches_seqs.fa"
 
 
-rule stage1_set_output_fasta:
-    input:
-        f"barrnap_and_{search_tool}_asvs.fna"
-    output:
-        protected("16s_bin_finds_seqs.fa")
-    shell:
-        """
-        cp {input} {output}
-        """
+# rule stage1_set_output_stats:
+#     input:
+#         mbstats_path = f"stage1_asvs_{search_tool}.tab",
+#         barstats_raw_path = "barrnap_16S-gff.gff",
+#         barstats_corrected_path = f"barrnap_corrected_stats_no_{search_tool}.tab"
+#     output:
+#         protected("16s_bin_finds_stats.tab")
+#     run:
+#         stage1_statistics(**input, output_path=output[0], search_tool=search_tool)
 
 
-rule stage1_set_output_stats:
-    input:
-        mbstats_path = f"stage1_asvs_{search_tool}.tab",
-        barstats_raw_path = "barrnap_16S-gff.gff",
-        barstats_corrected_path = f"barrnap_corrected_stats_no_{search_tool}.tab"
-    output:
-        protected("16s_bin_finds_stats.tab")
-    run:
-        stage1_statistics(**input, output_path=output[0], search_tool=search_tool)
-
-
-rule stage2_set_output_fasta:
-    input:
-        f"barrnap_and_{search_tool}_asvs_matching_seqs.fna"
-    output:
-        protected("asv_bin_matches_seqs.fa")
-    shell:
-        """
-        cp {input} {output}
-        """
+# rule stage2_set_output_fasta:
+#     input:
+#         f"barrnap_and_{search_tool}_asvs_matching_seqs.fna"
+#     output:
+#     shell:
+#         """
+#         cp {input} {output}
+#         """
 
 
 rule stage2_set_output_stats:
@@ -102,16 +90,17 @@ rule stage2_set_output_stats:
 
 rule combine_barrnap_with_other: # where other is blast or mmseqs
     input:
-        mbstats_fasta_path = "stage1_asvs_{tool}_matches.fna",
-        mbstats_stats_path =  "stage1_asvs_{tool}.tab",
-        barrnap_fasta_path = "barrnap_fasta-16S.fna"
+        mbstats_fasta_path = f"stage1_asvs_{search_tool}_matches.fna",
+        mbstats_stats_path = f"stage1_asvs_{search_tool}.tab",
+        barrnap_fasta_path = "barrnap_fasta-16S.fna",
+        barstats_path= "barrnap_16S-gff.gff"
     output:
-        out_fasta_path = temp("barrnap_and_{tool}_asvs.fna"),
-        out_barstats_path = temp("barrnap_corrected_stats_no_{tool}.tab")
+        out_fasta_path = protected("16s_bin_finds_seqs.fna"),
+        out_stats_path = protected("16s_bin_finds_stats.tab")
     run:
         combine_mbstats_barrnap(**input,
                                 **output,
-                                search_tool= wildcards['tool'],
+                                search_tool= search_tool,
                                 allow_empty = allow_empty,
                                 min_pct_id=s1_min_pct_id,
                                 min_length=s1_min_length)
@@ -223,15 +212,14 @@ rule mmseqs_stage2_search:
 
 rule stage2_filtering:
     input:
-       "stage2_asvs_{tool}.tab",
-       "barrnap_and_{tool}_asvs.fna"
+       stats_file = f"stage2_asvs_{search_tool}.tab",
+       fasta_file_in = "16s_bin_finds_seqs.fna"
     output:
-       temp("barrnap_and_{tool}_asvs_matching_seqs.fna")
+        fasta_file_out = protected("asv_bin_matches_seqs.fna")
     run:
        filter_from_mbstats(
-                       stats_file=input[0],
-                       fasta_file_in=input[1],
-                       fasta_file_out=output[0],
+                       **input,
+                       **output,
                        min_pct_id=s2_min_pct_id,
                        min_length=s2_min_length,
                        min_length_pct=s2_min_length_pct,

@@ -88,11 +88,18 @@ def test_fasta_to_df_no_filter(temp_fasta_protien_100):
 
 
 def test_empty_fasta_to_df(tmp_path):
-tmp_path  = pathlib.Path('./')
-empty_file = tmp_path / "emptyfile"
-empty_file.touch()
-empty_df = get_stage1_barrnap_fasta(str(empty_file), str(tmp_path / "out"))
-assert empty_df.empty, "The program will fail if barrnap fails"
+    empty_file = tmp_path / "emptyfile"
+    empty_file.touch()
+    empty_df = fasta_to_df(empty_file)
+    assert empty_df.empty, "The program will fail if barrnap fails"
+
+def test_empty_process_barfasta():
+empty_df = process_barfasta(pd.DataFrame())
+    assert empty_df.empty, "The program will fail if barrnap fails"
+
+def get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path):
+def save_barnap_stats(barfasta, out_barstats_path):
+def (data:pd.DataFrame) -> pd.DataFrame:
 
 
 def test_filter_fasta_from_headers(temp_fasta_protien_100, tmp_path):
