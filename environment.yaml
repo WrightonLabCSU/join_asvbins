@@ -1,0 +1,14 @@
+name: join_asvbins
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.*
+  - pandas
+  - pytest
+  - scikit-bio
+  - mmseqs2!=10.6d92c
+  - barrnap
+  - pip
+  - pip:
+    - -e ./
