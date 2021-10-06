@@ -6,23 +6,6 @@ from join_asvbins.utils import df_to_fasta, fasta_to_df, read_mbstats, \
     barstats_reformat, combine_fasta, filter_fasta_from_headers, read_gff
 
 
-def get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path):
-    mbseqs = fasta_to_df(mbstats_fasta_path,
-                         mbstats['sseqid'].values)
-    mbdata = pd.merge(mbseqs, mbstats, right_on='sseqid',
-                      left_on='header',
-                        how='inner')
-    mbdata = process_mbdata(mbdata)
-    return mbdata
-
-
-def get_stage1_barrnap_fasta(barfasta, out_barstats_path):
-    barfasta = process_barfasta(barfasta)
-    barfasta[['header', 'start', 'stop']].to_csv(out_barstats_path,
-                                             sep='\t', index=False)
-    return barfasta
-
-
 #TODO Add a handler for the case where blast/mmseqs or barrnap don't return matches
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
@@ -63,7 +46,8 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                              "only barrnap. Consider using --no_clean also to"
                              " save time.")
         else:
-            data = get_stage1_barrnap_fasta(barfasta, out_barstats_path)
+            data = process_barfasta(barfasta)
+            save_barnap_stats(barfasta, out_barstats_path)
             df_to_fasta(data, out_fasta_path)
             return
     if barfasta.empty:
@@ -79,7 +63,8 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
             df_to_fasta(data, out_fasta_path)
             return
     mbdata = get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path)
-    barfasta = get_stage1_barrnap_fasta(barfasta, out_barstats_path)
+    barfasta = process_barfasta(barfasta)
+    save_barnap_stats(barfasta, out_barstats_path)
     data = combine_fasta(mbdata, barfasta)
     df_to_fasta(data, out_fasta_path)
 

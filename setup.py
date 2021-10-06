@@ -17,7 +17,7 @@ setup(
     # scripts=['scripts/join_asvbins.py'],
     # package_dir={"": "src/"},
     # packages=find_packages(where='src/'),
-    packages=['join_asvbins', 'join_asvbins/utils'],
+    packages=['join_asvbins'],
     entry_points={
         "console_scripts": [
             "join_asvbins = join_asvbins:main"# ,

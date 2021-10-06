@@ -23,7 +23,8 @@ s1_min_pct_id = config.get('s1_min_pct_id')
 s2_min_pct_id = config.get('s2_min_pct_id')
 s1_min_length = config.get('s1_min_length')
 s2_min_length = config.get('s2_min_length')
-s2_min_length_pct = config.get('min_length_pct')
+s2_min_len_pct = config.get('min_length_pct')
+s2_min_len_pct = config.get('min_length_pct')
 s2_max_gaps = config.get('max_gaps')
 s2_max_missmatch = config.get('max_missmatch')
 
@@ -103,10 +104,10 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
     input:
         mbstats_fasta_path = "stage1_asvs_{tool}_matches.fna",
         mbstats_stats_path =  "stage1_asvs_{tool}.tab",
-        barrnap_fasta_path = "barrnap_fastafile-16S.fna"
+        barrnap_fasta_path = "barrnap_fasta-16S.fna"
     output:
         out_fasta_path = temp("barrnap_and_{tool}_asvs.fna"),
-        out_barstats_path = temp("barrnap_corrected_stats_no_{tool}.tab)"
+        out_barstats_path = temp("barrnap_corrected_stats_no_{tool}.tab")
     run:
         combine_mbstats_barrnap(**input,
                                 **output,
@@ -301,5 +302,5 @@ rule run_barrnap_fasta_trim:
     output:
         temp("barrnap_fasta-16S.fna")
     shell:
-        "xargs samtools faidx input[0] < input[1] > {output}"
+        "xargs samtools faidx {input[0]} < {input[1]} > {output}"
 

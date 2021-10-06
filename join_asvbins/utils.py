@@ -33,8 +33,7 @@ def fasta_to_df(path, headers=None):
                                for seq in read_fa(path, format='fasta')})
     except ValueError:
         warnings.warn('Some fasta file was not read, posbly it is the wrong'
-                      'format.',
-                      SintaxWarning)
+                      'format.', SintaxWarning)
         return pd.DataFrame()
     dafr = dafr.T
     dafr.reset_index(inplace=True)
@@ -74,6 +73,27 @@ def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
     return joined
 
 
+def get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path):
+    mbseqs = fasta_to_df(mbstats_fasta_path,
+                         mbstats['sseqid'].values)
+    mbdata = pd.merge(mbseqs, mbstats, right_on='sseqid',
+                      left_on='header',
+                        how='inner')
+    mbdata = process_mbdata(mbdata)
+    return mbdata
+
+
+def save_barnap_stats(barfasta, out_barstats_path):
+    """
+    save barrnap stats, run process_barfasta first!
+
+    :param barfasta:
+    :param out_barstats_path:
+    """
+    barfasta[['header', 'start', 'stop']].to_csv(out_barstats_path,
+                                             sep='\t', index=False)
+
+
 def process_barfasta(data:pd.DataFrame) -> pd.DataFrame:
     data.rename(columns={'header': 'barrnap_header'}, inplace=True)
     data[['header', 'start']] = \
@@ -84,8 +104,7 @@ def process_barfasta(data:pd.DataFrame) -> pd.DataFrame:
         reset_index(drop=True)
     # extra assert statement to cover by back
     assert sum(
-        (data['stop'] - data['start']) != data['seq'].apply(len)
-        ) == 0, \
+        (data['stop'] - data['start']) != data['seq'].apply(len)) == 0, \
         "The length of the sequence dose not match the size from the indexes."
     return data
 
@@ -164,16 +183,40 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
     return data[['header', 'seq', 'note']]
 
 
+def check_overlap(x:pd.Series) -> bool:
+    """
+    Check if the sequences are overlapping and nothing else
+
+    Intended to return true if the sequences are overlapping or
+    False if they are not. Known edge cases:
+    sequences are equal,
+    Match two heads or two tails
+
+    :param x: Input pd.Series
+    :returns: True if overlapping else False
+    """
+    if x['qlen'] == x['slen']:
+        return True
+    over_at_start = ((x['qstart'] <= 5) & (x['sstart'] >= 5)) | \
+                    ((x['qend'] <= 5) & (x['send'] >= 5))
+    over_at_end = ((abs(x['qstart'] - x['qlen']) <= 5) & \
+                   (abs(x['sstart'] - x['slen']) >= 5)) | \
+                  ((abs(x['qend'] - x['qlen']) <= 5) & \
+                   (abs(x['send'] - x['slen']) >= 5))
+    return over_at_start | over_at_end
+
+
 def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
-                   min_length_pct:float=None, max_gaps:int=None,
-                   max_missmatch:int=None):
+                   min_len_pct:float=None, max_gaps:int=None,
+                   max_missmatch:int=None, min_len_with_overlap:int=None,
+                   min_len_pct_no_overlap:float=None):
     """
     Creates and then applies a filter for mmseqs or blast statistics
 
     :param data: Data to be filter must be in a computable blast style format
     :param min_pct_id: Optional filter
     :param min_length: Optional filter
-    :param min_length_pct: Optional filter
+    :param min_len_pct: Optional filter
     :param max_gaps: Optional filter
     :param max_missmatch: Optional filter
     :returns: Filtered data
@@ -188,9 +231,15 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
         data_checks.append(lambda x: x['length'] >= min_length)
     if min_pct_id is not None:
         data_checks.append(lambda x: x['pident'] >= min_pct_id)
-    if min_length_pct is not None:
+    if min_len_pct is not None:
         data_checks.append(lambda x:
-            ((x['length'] / x['slen']) * 100) >= min_length_pct)
+    # TODO check that qlen should not be slen
+            ((x['length'] / x['qlen']) * 100) >= min_len_pct)
+    # NOTE MIN_SLEN_LENGTH = 1000
+    if min_len_with_overlap is not None and min_len_pct_no_overlap is not None:
+        data_checks.append(lambda x:
+            (check_overlap(x) & (x['length'] >= min_len_with_overlap)) | \
+            ((x['length'] / x['qlen']) * 100 >= min_len_pct_no_overlap))
     return data[
         data.apply(lambda x: all([l(x) for l in data_checks]),
         axis=1)
