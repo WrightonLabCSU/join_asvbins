@@ -11,4 +11,4 @@ dependencies:
   - barrnap
   - pip
   - pip:
-    - -e ./
+    - join_asvbins

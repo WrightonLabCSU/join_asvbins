@@ -10,17 +10,32 @@ and Kai Leleiwi" for more detail.
 
 ## Install
 
+The instalation should be no more complex than:
+
+```
+wget https://github.com/rmFlynn/16s_to_bins_project/blob/main/environment.yaml
+conda env create -f environment.yaml -n join_asvbins
+conda activate join_asvbins
+```
 
 ## Use Example
- '''
-join_asvbins \
+```
+/bin/time --verbose  --output=/home/projects/16s_to_bins_project/results/salmonella_small_time_post_filter.txt \
+        join_asvbins \
         -b data/salmonella_small/combined_bins.fna \
         -a data/salmonella/ASVs_r1-r4_dna-sequences.fasta \
-        -w results/salmonella_small_mmseqs4 \
-        -o results/salmonella_small_mmseqs4 \
-        -t 32 \
- '''
+        -o ./results/salmonella_small_t1 \
+        -t 2 #
+```
+The most important comand line options are:
+
+`--no_clean`
+
+But there are many more
+
+
 
 ## To do
- * TODO LOTS.
-      conda install -c conda-forge gcc_linux-64
+ * Split mmseqs into multi steps
+ * More general tests
+ * Add a test to run the full snake pipline.

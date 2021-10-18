@@ -189,7 +189,7 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
 def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
                    min_len_pct:float=None, max_gaps:int=None,
                    max_missmatch:int=None, min_len_with_overlap:int=None,
-                   min_len_pct_no_overlap:float=None):
+                   min_len_pct_no_overlap:float=None, end_buffer_length:int=5):
     """
     Creates and then applies a filter for mmseqs or blast statistics
 
@@ -200,6 +200,7 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
     :param max_gaps: Optional filter
     :param max_missmatch: Optional filter
     :returns: Filtered data
+    #TODO look more at annotat_vgfs get_gene order
     """
     def check_overlap(x:pd.Series) -> bool:
         """
@@ -211,19 +212,20 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
 
         NOTE sseq cant be reversed
         """
-        #TODO loook at annotat_vgfs get_gene order
+        ebl = end_buffer_length
         if x['qlen'] == x['slen']:
             return True
         assert x['sstart'] < x['send'], "The search sequences cant be reversed. Your data may be corrupt"
         if x['qstart'] > x['qend']:# q is reversed
-            if (abs(x['qstart'] - x['qlen']) <= 5) and (abs(x['send'] - x['slen']) <= 5):
+            if (abs(x['qstart'] - x['qlen']) <= ebl) \
+                and (abs(x['send'] - x['slen']) <= ebl):
                 return True
-            if (x['qend'] <= 5) and (x['sstart'] <= 5):
+            if (x['qend'] <= ebl) and (x['sstart'] <= ebl):
                 return True
         else:# q is not reversed
-            if (x['qstart'] <= 5) and (abs(x['send'] - x['slen']) <= 5):
+            if (x['qstart'] <= ebl) and (abs(x['send'] - x['slen']) <= ebl):
                 return True
-            if (abs(x['qend'] - x['qlen']) <= 5) and (x['sstart'] <= 5):
+            if (abs(x['qend'] - x['qlen']) <= ebl) and (x['sstart'] <= ebl):
                 return True
         return False
     data_checks = []

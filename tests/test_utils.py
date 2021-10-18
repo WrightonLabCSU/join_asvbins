@@ -4,7 +4,7 @@ import pytest
 import pathlib
 import pandas as pd
 from join_asvbins.utils import process_barfasta, filter_mdstats, \
-    fasta_to_df, df_to_fasta, filter_fasta_from_headers, check_overlap
+    fasta_to_df, df_to_fasta, filter_fasta_from_headers
 
 
 def test_filter_mdstats():
@@ -140,7 +140,6 @@ def passing_overlap_df() -> pd.DataFrame:
         # TODO ask about:
         "discription": ["Start-end", "Start-end-rev", "End-start-rev", "End-start",],
         "pass":        [       True,            True,            True,        True,],
-        "pass_nol":    [       True,            True,            True,        True,],
         "qstart":      [          1,            1070,            1410,         340,],
         "qend":        [       1070,               1,             340,        1410,],
         "qlen":        [       1410,            1410,            1410,        1410,],
@@ -150,13 +149,20 @@ def passing_overlap_df() -> pd.DataFrame:
         "length":      [       1104,            1104,            1104,        1104,],
         "pident":      [         78,              78,              78,          78,]
     })
-    return input_df
+    return passing_df
 
 
 def test_check_overlap(overlap_df):
-    assert overlap_df['pass_nol'].equals(
-        overlap_df.apply(check_overlap, axis=1)
-    ), "Can't properly filter for overlaping 16s"
+    ouput_df = filter_mdstats(overlap_df,
+                   min_len_with_overlap=0,
+                   min_len_pct_no_overlap=200)
+    assert overlap_df[overlap_df['pass_nol']].equals(ouput_df), "Can't properly filter for overlaping 16s"
+
+def test_check_overlap_passing(passing_overlap_df):
+    ouput_df = filter_mdstats(passing_overlap_df,
+                   min_len_with_overlap=0,
+                   min_len_pct_no_overlap=200)
+    assert passing_overlap_df.equals(ouput_df), "Can't properly filter for overlaping 16s"
 
 
 def test_overlap_filter(overlap_df):

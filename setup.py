@@ -34,5 +34,6 @@ setup(
     author="Rory Flynn",
     author_email='Rory.Flynn@colostate.edu',
     url="https://github.com/rmFlynn/16s_to_bins_project",  # this will change
-    download_url="None for %s" % __version__)
+    # download_url="None for %s" % __version__
+)
 

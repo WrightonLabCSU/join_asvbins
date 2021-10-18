@@ -6,8 +6,6 @@ import pandas as pd
 from join_asvbins.snake_functions import combine_mbstats_barrnap, \
     pullseqs_header_name_from_tab, filter_from_mbstats, stage2_statistics
 
-LOCALY_COMBINED_BINS = "all_bins_combined"
-
 search_tool = 'blast' if config['blast'] else 'mmseqs'
 # TODO decide if this is neccicary
 # output_name = config.get('output_name')
@@ -29,14 +27,16 @@ s2_min_len_pct = config.get('min_len_pct')
 s2_max_gaps = config.get('max_gaps')
 s2_max_missmatch = config.get('max_missmatch')
 verbosity= config.get('verbosity')
+localy_combined_bins = "all_bins_combined"
+
 
 
 # Set the appropriate output, This can be moved
 if os.path.isdir(bins_path):
     bins_folder = bins_path
-    path_to_combined_bins = LOCALY_COMBINED_BINS
+    path_to_combined_bins = localy_combined_bins
 else:
-    bins_folder = "None"
+    bins_folder = None
     path_to_combined_bins = bins_path
 
 
@@ -114,14 +114,13 @@ rule combine_input_fa:
     input:
         bins_folder
     output:
-        temp(LOCALY_COMBINED_BINS)
+        temp(localy_combined_bins)
     run:
-       input_list = glob.glob(
-                       os.path.join(input, "*.{fasta_extention}"))
+       input_list = glob.glob(os.path.join(input[0], f"*.{fasta_extention}"))
        if fasta_extention.endswith('gz'):
-               shell("gzip -cd  {input_list} >> {output}")
+               shell(f"gzip -cd  {input_list} >> {{output}}")
        else:
-               shell("cat {input_list} >> {output}")
+               shell(f"cat {' '.join(input_list)} >> {{output}}")
 
 
 rule mmseqs_stage1_search:
@@ -139,17 +138,18 @@ rule mmseqs_stage1_search:
     shell:
         """
         mkdir {output[0]}
-        mmseqs createdb {input[0]} {output[0]}/target
-        mmseqs createdb {input[1]} {output[0]}/query
+        mmseqs createdb -v {params.verbosity} {input[0]} {output[0]}/target
+        mmseqs createdb -v {params.verbosity} {input[1]} {output[0]}/query
         mmseqs search --search-type 3 \\
+               -v {params.verbosity} \\
+               -s {params.sensitivity} \\
+               --threads {threads} \\
                {output[0]}/query \\
                {output[0]}/target \\
                {output[0]}/mmseqs_out \\
-               temp \\
-               --threads {threads} \\
-               -s {params.sensitivity} \\
-               -v {params.verbosity}
+               temp
         mmseqs convertalis \\
+               -v {params.verbosity} \\
                --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\' \\
                {output[0]}/query \\
                {output[0]}/target \\
@@ -200,8 +200,10 @@ rule mmseqs_stage2_search:
         # TODO Split out the db creation, into other rules if it makes sense seeing as you may need to limit cores
         """
         mkdir {output[0]}
-        mmseqs createdb {input[0]} {output[0]}/target
-        mmseqs createdb {input[1]} {output[0]}/query
+        mmseqs createdb -v {params.verbosity} \\
+                        {input[0]} {output[0]}/target
+        mmseqs createdb -v {params.verbosity} \\
+                        {input[1]} {output[0]}/query
         mmseqs search --search-type 3 \\
                {output[0]}/query \\
                {output[0]}/target \\
@@ -210,6 +212,7 @@ rule mmseqs_stage2_search:
                -s {params.sensitivity} \\
                -v {params.verbosity}
         mmseqs convertalis  \\
+               -v {params.verbosity} \\
                --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\' \\
                {output[0]}/query \\
                {output[0]}/target \\
