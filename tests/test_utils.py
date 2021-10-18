@@ -134,6 +134,25 @@ def overlap_df() -> pd.DataFrame:
     })
     return input_df
 
+@pytest.fixture()
+def passing_overlap_df() -> pd.DataFrame:
+    passing_df = pd.DataFrame({
+        # TODO ask about:
+        "discription": ["Start-end", "Start-end-rev", "End-start-rev", "End-start",],
+        "pass":        [       True,            True,            True,        True,],
+        "pass_nol":    [       True,            True,            True,        True,],
+        "qstart":      [          1,            1070,            1410,         340,],
+        "qend":        [       1070,               1,             340,        1410,],
+        "qlen":        [       1410,            1410,            1410,        1410,],
+        "sstart":      [     130220,               2,          130220,           2,],
+        "send":        [     131290,            1105,          131290,        1105,],
+        "slen":        [     131290,          131290,          131290,      131290,],
+        "length":      [       1104,            1104,            1104,        1104,],
+        "pident":      [         78,              78,              78,          78,]
+    })
+    return input_df
+
+
 def test_check_overlap(overlap_df):
     assert overlap_df['pass_nol'].equals(
         overlap_df.apply(check_overlap, axis=1)

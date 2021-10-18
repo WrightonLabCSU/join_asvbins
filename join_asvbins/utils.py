@@ -184,28 +184,6 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
     return data[['header', 'seq', 'note']]
 
 
-def check_overlap(x:pd.Series) -> bool:
-    """
-    Check if the sequences are overlapping and nothing else
-
-    Intended to return true if the sequences are overlapping or
-    False if they are not. Known edge cases:
-    sequences are equal,
-    Match two heads or two tails
-
-    :param x: Input pd.Series
-    :returns: True if overlapping else False
-    """
-    #TODO loook at annotat_vgfs get_gene order
-    if x['qlen'] == x['slen']:
-        return True
-    over_at_start = ((x['qstart'] <= 5) & (x['sstart'] >= 5)) | \
-                    ((x['qend'] <= 5) & (x['send'] >= 5))
-    over_at_end = ((abs(x['qstart'] - x['qlen']) <= 5) & \
-                   (abs(x['sstart'] - x['slen']) >= 5)) | \
-                  ((abs(x['qend'] - x['qlen']) <= 5) & \
-                   (abs(x['send'] - x['slen']) >= 5))
-    return over_at_start | over_at_end
 
 
 def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
@@ -223,6 +201,31 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
     :param max_missmatch: Optional filter
     :returns: Filtered data
     """
+    def check_overlap(x:pd.Series) -> bool:
+        """
+        Conditions for True
+        qseq reversed      qstart included sstart included
+                           qend included   send included
+        qseq not reversed qstart included  send included
+                          qend included    sstart included
+
+        NOTE sseq cant be reversed
+        """
+        #TODO loook at annotat_vgfs get_gene order
+        if x['qlen'] == x['slen']:
+            return True
+        assert x['sstart'] < x['send'], "The search sequences cant be reversed. Your data may be corrupt"
+        if x['qstart'] > x['qend']:# q is reversed
+            if (abs(x['qstart'] - x['qlen']) <= 5) and (abs(x['send'] - x['slen']) <= 5):
+                return True
+            if (x['qend'] <= 5) and (x['sstart'] <= 5):
+                return True
+        else:# q is not reversed
+            if (x['qstart'] <= 5) and (abs(x['send'] - x['slen']) <= 5):
+                return True
+            if (abs(x['qend'] - x['qlen']) <= 5) and (x['sstart'] <= 5):
+                return True
+        return False
     data_checks = []
     if max_gaps is not None:
         data_checks.append(lambda x: x['gapopen'] <= max_gaps)
