@@ -29,22 +29,25 @@ CONFIG_VALUES = {
     "blast": False,
     "allow_empty": False,
     "fasta_extention": 'fa',
+    "verbosity": 2,
     "generic_16s":
        get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
 }
 
+# TODO add a section to the readme on this, just this
 FILTER_VALUES = {
-    # TODO
-   "s1_min_pct_id": 0.90,
-   "s2_min_pct_id": 0.90,
-   "s1_min_length": 100,
-   "s2_min_length": 250,
-   "s1_min_length_pct": 95,
-   "s2_min_length_pct": 95,
-   "max_gaps": 3,
-   "max_missmatch": 2,
-   "s1_mmseqs_sensitivity": 4,
-   "s2_mmseqs_sensitivity": 4,
+    "s1_min_pct_id": 0.90,
+    "s2_min_pct_id": 0.90,
+    "s1_min_length": 1,
+    "s2_min_length": 250,
+    "s1_min_len_pct": 95,
+    "s2_min_len_pct": 95,
+    "max_gaps": 3,
+    "max_missmatch": 2,
+    "s1_mmseqs_sensitivity": 4,
+    "s2_mmseqs_sensitivity": 4,
+    "min_len_with_overlap": 1550*0.25, #TODO make it the 25%tile of clustered length
+    "min_len_pct_no_overlap": 95
 }
 
 
@@ -52,17 +55,24 @@ def join_asvbins(bins:str=None,
                  asv_seqs:str=CONFIG_VALUES['asv_seqs'],
                  output_dir:str=CONFIG_VALUES['output_dir'],
                  blast:bool=CONFIG_VALUES['blast'],
-                 generic_16s=CONFIG_VALUES['generic_16s'],
-                 allow_empty=CONFIG_VALUES["allow_empty"],
-                 s1_min_pct_id=FILTER_VALUES['s1_min_pct_id'],
-                 s2_min_pct_id=FILTER_VALUES['s2_min_pct_id'],
-                 s1_min_length=FILTER_VALUES['s1_min_length'],
-                 s2_min_length=FILTER_VALUES['s2_min_length'],
-                 s1_mmseqs_sensitivity=FILTER_VALUES["s1_mmseqs_sensitivity"],
-                 s2_mmseqs_sensitivity=FILTER_VALUES["s2_mmseqs_sensitivity"],
-                 s1_min_length_pct=FILTER_VALUES['s1_min_length_pct'],
-                 s2_min_length_pct=FILTER_VALUES['s2_min_length_pct'],
-                 max_gaps=FILTER_VALUES['max_gaps'], snake_rule:str=None,
+                 generic_16s:str=CONFIG_VALUES['generic_16s'],
+                 verbosity:str=CONFIG_VALUES['verbosity'],
+                 allow_empty:bool=CONFIG_VALUES["allow_empty"],
+                 s1_min_pct_id:float=FILTER_VALUES['s1_min_pct_id'],
+                 s2_min_pct_id:float=FILTER_VALUES['s2_min_pct_id'],
+                 s1_min_length:int=FILTER_VALUES['s1_min_length'],
+                 s2_min_length:int=FILTER_VALUES['s2_min_length'],
+                 s1_mmseqs_sensitivity:float=
+                     FILTER_VALUES["s1_mmseqs_sensitivity"],
+                 s2_mmseqs_sensitivity:float=
+                     FILTER_VALUES["s2_mmseqs_sensitivity"],
+                 min_len_with_overlap:int=
+                     FILTER_VALUES["min_len_with_overlap"],
+                 min_len_pct_no_overlap:float=
+                     FILTER_VALUES["min_len_pct_no_overlap"],
+                 s1_min_len_pct:float=FILTER_VALUES['s1_min_len_pct'],
+                 s2_min_len_pct:float=FILTER_VALUES['s2_min_len_pct'],
+                 max_gaps:int=FILTER_VALUES['max_gaps'], snake_rule:str=None,
                  fasta_extention:str='fa', bin_16s_seqs:str=None,
                  max_missmatch:int=FILTER_VALUES['max_missmatch'],
                  no_clean:bool=False, no_filter:bool=False, stats:str=None,
@@ -89,6 +99,8 @@ def join_asvbins(bins:str=None,
     " Check that all arguments are logical. For example, if you provided"
     " 16s from bins but not asvs then the progam has nothing to do."
     all_locals = locals()
+    quiet = True if verbosity < 3 else False
+    snake_verbose = True if verbosity >= 5 else False
     config = {i:all_locals.get(i)
               for i in CONFIG_VALUES
               if all_locals.get(i) is not None}
@@ -103,14 +115,17 @@ def join_asvbins(bins:str=None,
         snakemake(get_package_path('Snakefile'),
                   targets=[snake_rule], workdir=output_dir,
                   config=config, forceall=True, printdag=print_dag,
+                  quiet=quiet, verbose=snake_verbose,
                   printrulegraph=print_rulegraph, **snake_args)
         return
     if os.path.exists(output_dir) and not no_clean:
         snakemake(get_package_path('Snakefile'), workdir=output_dir,
-                  config=config, delete_all_output=True, **snake_args)
+                  quiet=quiet, verbose=snake_verbose, config=config,
+                  delete_all_output=True, **snake_args)
     # Note that stats='stats should work'
-    snakemake(get_package_path('Snakefile'), workdir=output_dir,
-              config=config, cores=threads, notemp=keep_temp, **snake_args)
+    snakemake(get_package_path('Snakefile'), workdir=output_dir, quiet=quiet,
+              verbose=snake_verbose, config=config, cores=threads,
+              notemp=keep_temp, **snake_args)
 
 
 class ParseKwargs(argparse.Action):
@@ -171,6 +186,31 @@ def main():
                         default=CONFIG_VALUES['generic_16s'],
                         help="A set of generic_16s files that may be part of"
                         " your bins.")
+    parser.add_argument('-v', '--verbosity', action='count',
+                        default=CONFIG_VALUES['verbosity'], help=
+                        "This sets the verbosity level for the run. This"
+                        " Will effect snakemake and commands run in the"
+                        " pipeline. Specifically snakemake will operate under"
+                        " \"quite\" settings below 3 '-vvv' and will be"
+                        " \"verbose\" above 5 '-vvvvv', this same level will be"
+                        " passed to the subcommands as well."
+                        # "\n1 '-v': Snakemake will be quiet, all sub commands"
+                        # " will operate in lowest level of verbosity or be"
+                        # " silenced."
+                        # "\n2 '-vv': Snakemake will be quiet, all sub commands"
+                        # " will operate in the lowest level of verbosity"
+                        # " which will allow errors to be shown."
+                        # "\n3 '-vvv': Snakemake will give rules, but all sub commands"
+                        # " will operate in the lowest level of verbosity that "
+                        # "still will allow errors to be shown."
+                        # "\n4 '-vvvv': Snakemake will give rules, All sub commands"
+                        # " will operate in the lowest level of verbosity that "
+                        # "still will allow warnings to be shown."
+                        # "\n5 '-vvvvv': Snakemake will give rules info, All sub commands"
+                        # " will show a amount of information above warnings"
+                        # "\n6 '-vvvvvv': Snakemake will give debugging info, All sub"
+                        # " commands will run on their most verbosity settings"
+                        )
     parser.add_argument("-t", "--threads", type=int, default=1,
                         help="The number of threads that will be used by the "
                         "program and subprocess.")
@@ -224,6 +264,22 @@ def main():
                         help="This value is pased to mmseqs during the stage 2"
                         " search as the sensitivity setting. Increasing it"
                         " could result in more hits at the cost of time")
+    parser.add_argument("--min_len_with_overlap", type=int,
+                        default=FILTER_VALUES['min_len_with_overlap'],
+                        help="This value in cordination with the"
+                        " min_len_pct_no_overlap argument conditions a rule"
+                        " that alows for only for matches, in the seaching of"
+                        " generic 16s sequences with bins, where the 16s"
+                        " overlaps the beganing or end of the bin, and vise"
+                        " versa AND is of this length or longer.")
+    parser.add_argument("--min_len_pct_no_overlap", type=int,
+                        default=FILTER_VALUES['min_len_pct_no_overlap'],
+                        help="This value in cordination with the"
+                        " min_len_with_overlap argument conditions a rule"
+                        " that alows for only for matches, in the seaching of"
+                        " generic 16s sequences with bins, where the 16s"
+                        " overlaps the beganing or end of the bin, and vise"
+                        " versa OR has this percent of the length covered.")
     parser.add_argument("--s1_min_pct_id", type=float,
                         default=FILTER_VALUES['s1_min_pct_id'],
                         help="This limits the percent identity that will be"
@@ -241,17 +297,18 @@ def main():
     parser.add_argument("--s1_min_length", type=int,
                         default=FILTER_VALUES['s1_min_length'],
                         help="This limits how short the length of the match"
-                        " from the generic 16s to bins can be for consideration.")
+                        " from the generic 16s to bins can be for "
+                        "consideration.")
     parser.add_argument("--s2_min_length", type=int,
                         default=FILTER_VALUES['s2_min_length'],
                         help="This limits how short the length of the match"
                         " from the ASVs to bin 16s can be for consideration.")
-    parser.add_argument("--s1_min_length_pct", type=float,
-                        default=FILTER_VALUES['s1_min_length_pct'],
+    parser.add_argument("--s1_min_len_pct", type=float,
+                        default=FILTER_VALUES['s1_min_len_pct'],
                         help="This limits how short the length of the match"
                         " from the ASVs to bin 16s can be for consideration.")
-    parser.add_argument("--s2_min_length_pct", type=float,
-                        default=FILTER_VALUES['s2_min_length_pct'],
+    parser.add_argument("--s2_min_len_pct", type=float,
+                        default=FILTER_VALUES['s2_min_len_pct'],
                         help="This limits how short the length of the match"
                         " from the ASVs to bin 16s can be for consideration.")
     parser.add_argument("--max_gaps", type=int,

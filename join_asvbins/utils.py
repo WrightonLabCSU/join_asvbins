@@ -115,7 +115,8 @@ def read_mbstats(stats_path:str) -> pd.DataFrame:
     :param stats_path: The path to the formatted statistics
     :returns: A dataframe with proper format
     """
-    stats = pd.read_csv(stats_path, header=None, sep='\t', names=MBSTATS_NAMES)
+    stats = pd.read_csv(stats_path, header=None, sep='\t',
+                        names=MBSTATS_NAMES)
     return stats
 
 
@@ -195,6 +196,7 @@ def check_overlap(x:pd.Series) -> bool:
     :param x: Input pd.Series
     :returns: True if overlapping else False
     """
+    #TODO loook at annotat_vgfs get_gene order
     if x['qlen'] == x['slen']:
         return True
     over_at_start = ((x['qstart'] <= 5) & (x['sstart'] >= 5)) | \
@@ -221,7 +223,6 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
     :param max_missmatch: Optional filter
     :returns: Filtered data
     """
-    # NOTE For perfect matches the Alignment Length equals the DB allele Length so the percent should be length/slen.
     data_checks = []
     if max_gaps is not None:
         data_checks.append(lambda x: x['gapopen'] <= max_gaps)
@@ -238,12 +239,13 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
     # NOTE MIN_SLEN_LENGTH = 1000
     if min_len_with_overlap is not None and min_len_pct_no_overlap is not None:
         data_checks.append(lambda x:
-            (check_overlap(x) & (x['length'] >= min_len_with_overlap)) | \
-            ((x['length'] / x['qlen']) * 100 >= min_len_pct_no_overlap))
-    return data[
-        data.apply(lambda x: all([l(x) for l in data_checks]),
-        axis=1)
-        ]
+            (check_overlap(x) & \
+             (x['length'] >= min_len_with_overlap)) | \
+            ((x['pident'] >= min_len_pct_no_overlap) & \
+             (x['length'] >= min_len_with_overlap)))
+    return data[data.apply(
+        lambda x: all([l(x) for l in data_checks]),
+        axis=1)]
 
 
 def barstats_reformat(barstats_corrected:pd.DataFrame,

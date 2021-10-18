@@ -4,8 +4,7 @@ import glob
 import pathlib
 import pandas as pd
 from join_asvbins.snake_functions import combine_mbstats_barrnap, \
-    pullseqs_header_name_from_tab, filter_from_mbstats, stage1_statistics, \
-    stage2_statistics
+    pullseqs_header_name_from_tab, filter_from_mbstats, stage2_statistics
 
 LOCALY_COMBINED_BINS = "all_bins_combined"
 
@@ -19,14 +18,17 @@ generic_16s_path = config.get('generic_16s')
 allow_empty= config.get('allow_empty')
 s1_mmseqs_sensitivity = config.get('s1_mmseqs_sensitivity')
 s2_mmseqs_sensitivity = config.get('s2_mmseqs_sensitivity')
+min_len_with_overlap = config.get("min_len_with_overlap")
+min_len_pct_no_overlap = config.get("min_len_pct_no_overlap")
 s1_min_pct_id = config.get('s1_min_pct_id')
 s2_min_pct_id = config.get('s2_min_pct_id')
 s1_min_length = config.get('s1_min_length')
 s2_min_length = config.get('s2_min_length')
-s2_min_len_pct = config.get('min_length_pct')
-s2_min_len_pct = config.get('min_length_pct')
+s2_min_len_pct = config.get('min_len_pct')
+s2_min_len_pct = config.get('min_len_pct')
 s2_max_gaps = config.get('max_gaps')
 s2_max_missmatch = config.get('max_missmatch')
+verbosity= config.get('verbosity')
 
 
 # Set the appropriate output, This can be moved
@@ -41,21 +43,21 @@ else:
 rule all:
     input:
         "16s_bin_finds_stats.tab",
-        "16s_bin_finds_seqs.fa",
+        "16s_bin_finds_seqs.fna",
         "asv_bin_matches_stats.tab",
-        "asv_bin_matches_seqs.fa"
+        "asv_bin_matches_seqs.fna"
 
 
 rule search1_16s_bin_finds:
     input:
         "16s_bin_finds_stats.tab",
-        "16s_bin_finds_seqs.fa"
+        "16s_bin_finds_seqs.fna"
 
 
 rule search2_asv_bin_matches:
     input:
         "asv_bin_matches_stats.tab",
-        "asv_bin_matches_seqs.fa"
+        "asv_bin_matches_seqs.fna"
 
 
 # rule stage1_set_output_stats:
@@ -93,16 +95,18 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
         mbstats_fasta_path = f"stage1_asvs_{search_tool}_matches.fna",
         mbstats_stats_path = f"stage1_asvs_{search_tool}.tab",
         barrnap_fasta_path = "barrnap_fasta-16S.fna",
-        barstats_path= "barrnap_16S-gff.gff"
+        barrnap_stats_path= "barrnap_16S-gff.gff"
     output:
         out_fasta_path = protected("16s_bin_finds_seqs.fna"),
         out_stats_path = protected("16s_bin_finds_stats.tab")
     run:
         combine_mbstats_barrnap(**input,
                                 **output,
-                                search_tool= search_tool,
-                                allow_empty = allow_empty,
+                                search_tool=search_tool,
+                                allow_empty=allow_empty,
                                 min_pct_id=s1_min_pct_id,
+                                min_len_with_overlap=min_len_with_overlap,
+                                min_len_pct_no_overlap=min_len_pct_no_overlap,
                                 min_length=s1_min_length)
 
 
@@ -130,7 +134,8 @@ rule mmseqs_stage1_search:
     threads:
         workflow.cores
     params:
-        sensitivity = s2_mmseqs_sensitivity
+        sensitivity = s2_mmseqs_sensitivity,
+        verbosity = verbosity
     shell:
         """
         mkdir {output[0]}
@@ -142,7 +147,8 @@ rule mmseqs_stage1_search:
                {output[0]}/mmseqs_out \\
                temp \\
                --threads {threads} \\
-               -s {params.sensitivity}
+               -s {params.sensitivity} \\
+               -v {params.verbosity}
         mmseqs convertalis \\
                --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\' \\
                {output[0]}/query \\
@@ -180,7 +186,7 @@ rule pullseq_header_name:
 
 rule mmseqs_stage2_search:
     input:
-       "barrnap_and_mmseqs_asvs.fna", # Target
+       "16s_bin_finds_seqs.fna", # Target
        asv_seqs_path # Query
     output:
        temp(directory("mmseqs_stage2_db")),
@@ -188,7 +194,8 @@ rule mmseqs_stage2_search:
     threads:
         workflow.cores
     params:
-        sensitivity = s1_mmseqs_sensitivity
+        sensitivity = s1_mmseqs_sensitivity,
+        verbosity = verbosity
     shell:
         # TODO Split out the db creation, into other rules if it makes sense seeing as you may need to limit cores
         """
@@ -200,7 +207,8 @@ rule mmseqs_stage2_search:
                {output[0]}/target \\
                {output[0]}/mmseqs_out \\
                temp \\
-               -s {params.sensitivity}
+               -s {params.sensitivity} \\
+               -v {params.verbosity}
         mmseqs convertalis  \\
                --format-output \'query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen\' \\
                {output[0]}/query \\
@@ -222,7 +230,7 @@ rule stage2_filtering:
                        **output,
                        min_pct_id=s2_min_pct_id,
                        min_length=s2_min_length,
-                       min_length_pct=s2_min_length_pct,
+                       min_len_pct=s2_min_len_pct,
                        max_gaps=s2_max_gaps,
                        max_missmatch=s2_max_missmatch
                        )
@@ -251,8 +259,10 @@ rule run_barrnap_barrnap:
         temp("barrnap_rrna.gff")
     threads:
         workflow.cores
+    params:
+        verbosity = "--quiet" if verbosity < 3 else ""
     shell:
-        "barrnap --threads {threads} {input} > {output}"
+        "barrnap --threads {threads} {params.verbosity} {input} > {output}"
 
 
 rule run_barrnap_16s_gtff:
