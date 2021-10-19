@@ -134,7 +134,7 @@ rule mmseqs_stage1_search:
         workflow.cores
     params:
         sensitivity = s2_mmseqs_sensitivity,
-        verbosity = verbosity
+        verbosity = verbosity if verbosity <= 3 else 3
     shell:
         """
         mkdir {output[0]}
@@ -195,7 +195,7 @@ rule mmseqs_stage2_search:
         workflow.cores
     params:
         sensitivity = s1_mmseqs_sensitivity,
-        verbosity = verbosity
+        verbosity = verbosity if verbosity <= 3 else 3
     shell:
         # TODO Split out the db creation, into other rules if it makes sense seeing as you may need to limit cores
         """
