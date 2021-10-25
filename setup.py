@@ -24,6 +24,8 @@ setup(
             # "snakemake-bash-completion = snakemake:bash_completion",
         ]
     },
+    data_file = [('join_asvbins/data/', 'join_asvbins/data/silva_clusterd_95pct_rep_seq.fasta'),
+                 ('join_asvbins/', 'join_asvbins/Snakefile')],
     description="Asv to bin joining tool",
     long_description=long_description,
     long_description_content_type='text/markdown',  # Optional (see note above)
