@@ -1,12 +1,12 @@
 # Comparing 16s(ASV) to Bins
 
-We want to connect our 16S rRNA sequences to our bins to the best ability of
-the data. There are many ways to go about this but we will focus on the uses
-of barrnap and BLAST to extract 16s information from the bins themselves.
-This method is the most accessible and well documented as of yet, however
-it also has known drawback. To understand this method and its us here it is
-best to look at the "Comparing ASV to Bins Protocol, By: Katherine Kokkinias
-and Kai Leleiwi" for more detail.
+This tool provids a method for conecting 16S rRNA sequences to a set of bins.
+The code is in esance a wraper around a snake make pipline that uses barnap and MMseqs2, with the option of substituting BLAST for MMseqs2.
+This is not a perfect system, and is also a work in progress.
+
+## Install
+
+The tool can run on as few as 1 core but it will ustilized as many cores as specified by the -t argument.  MMseqs2 is much faster than BLAST but will requier more ram, often in the range of 40 - 60 gigabites dependin on the size of the target data set. Using blast will decress the memory requierments but will also requier a long run time.
 
 ## Install
 
@@ -24,7 +24,7 @@ join_asvbins \
         -b path/to/bins/folder/or/file.fa \
         -a /path/to/asv/file.fa \
         -o /path/to/output \
-        -t 32 # Threads
+        -t 20 # Threads
 ```
 
 The most important comand line options are:
