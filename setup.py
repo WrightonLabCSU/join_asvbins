@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 from os import path
 
 __author__ = 'rmflynn'
-__version__ = '0.0.1'
+__version__ = '0.0.4'
 
 here = path.abspath(path.dirname(__file__))
 
@@ -24,18 +24,20 @@ setup(
             # "snakemake-bash-completion = snakemake:bash_completion",
         ]
     },
-    data_file = [('join_asvbins/data/', 'join_asvbins/data/silva_clusterd_95pct_rep_seq.fasta'),
-                 ('join_asvbins/', 'join_asvbins/Snakefile')],
+    include_package_data=True,  # include all files in MANIFEST.in
+    data_files=[],
     description="Asv to bin joining tool",
     long_description=long_description,
     long_description_content_type='text/markdown',  # Optional (see note above)
     python_requires='>=3',
     # install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'graphviz', 'mmseqs2'],
-    install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'pytest'],
+    # install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'pytest'],
+    install_requires=[],
     #TODO add mmseqs
     author="Rory Flynn",
     author_email='Rory.Flynn@colostate.edu',
     url="https://github.com/rmFlynn/16s_to_bins_project",  # this will change
+    # zip_safe=False,
     # download_url="None for %s" % __version__
 )
 
