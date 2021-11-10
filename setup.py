@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 from os import path
 
 __author__ = 'rmflynn'
-__version__ = '0.0.4'
+__version__ = '0.0.2'
 
 here = path.abspath(path.dirname(__file__))
 
@@ -25,14 +25,14 @@ setup(
         ]
     },
     include_package_data=True,  # include all files in MANIFEST.in
-    data_files=[],
+    package_dir={'join_asvbins': 'join_asvbins'},
+    package_data={'join_asvbins': ['Snakefile']},
     description="Asv to bin joining tool",
     long_description=long_description,
     long_description_content_type='text/markdown',  # Optional (see note above)
     python_requires='>=3',
     # install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'graphviz', 'mmseqs2'],
     # install_requires=['scikit-bio', 'pandas', 'numpy', 'snakemake', 'pytest'],
-    install_requires=[],
     #TODO add mmseqs
     author="Rory Flynn",
     author_email='Rory.Flynn@colostate.edu',

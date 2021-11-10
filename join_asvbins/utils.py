@@ -147,7 +147,8 @@ def process_mbdata(data:pd.DataFrame, headers=None) -> pd.DataFrame:
     return data
 
 
-def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
+def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame,
+                  search_tool:str) -> pd.DataFrame:
     barseqs= barrnap[['header', 'seq']].copy()
     mbseqs = mbstats[['header', 'seq']].copy()
     mbseqs['mbseqs'] = True
@@ -163,13 +164,13 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame) -> pd.DataFrame:
         if x['barseqs'] and not x['mbseqs']:
             return x['seq_bar'], 'Barnnap'
         elif x['mbseqs'] and not x['barseqs']:
-            return x['seq_other'], 'Other'
+            return x['seq_other'], search_tool
         elif len(x['seq_bar']) > len(x['seq_other']):
-            return x['seq_bar'], 'Barnnap>Other'
+            return x['seq_bar'], f'Barnnap>{search_tool}'
         elif len(x['seq_bar']) < len(x['seq_other']):
-            return x['seq_bar'], 'Other>Barnnap'
+            return x['seq_bar'], f'{search_tool}>Barnnap'
         elif len(x['seq_bar']) == len(x['seq_other']):
-            return x['seq_bar'], 'Other=Barnnap'
+            return x['seq_bar'], f'{search_tool}=Barnnap'
         else:
             raise Exception("Non equal duplicates in barseqs, and mbseqs")
 
@@ -213,9 +214,16 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
         NOTE sseq cant be reversed
         """
         ebl = end_buffer_length
+        # NOTE is this exceptionable
+        if abs(x['length']- x['qlen']) <= 2*ebl or \
+            abs(x['length']- x['slen']) <= 2*ebl:
+            return True
         if x['qlen'] == x['slen']:
             return True
-        assert x['sstart'] < x['send'], "The search sequences cant be reversed. Your data may be corrupt"
+        if x['sstart'] > x['send']:
+            breakpoint()
+            raise ValueError("The search sequences cant be reversed."
+                             " Your data may be corrupt")
         if x['qstart'] > x['qend']:# q is reversed
             if (abs(x['qstart'] - x['qlen']) <= ebl) \
                 and (abs(x['send'] - x['slen']) <= ebl):
@@ -242,7 +250,8 @@ def filter_mdstats(data, min_pct_id:float=None, min_length:int=None,
     # TODO check that qlen should not be slen
             ((x['length'] / x['qlen']) * 100) >= min_len_pct)
     # NOTE MIN_SLEN_LENGTH = 1000
-    if min_len_with_overlap is not None and min_len_pct_no_overlap is not None:
+    if min_len_with_overlap is not None and \
+       min_len_pct_no_overlap is not None:
         data_checks.append(lambda x:
             (check_overlap(x) & \
              (x['length'] >= min_len_with_overlap)) | \
@@ -257,14 +266,14 @@ def barstats_reformat(barstats_corrected:pd.DataFrame,
                       barstats_raw:pd.DataFrame,
                       qname:str)->pd.DataFrame:
     output_colums = {
-        "seqname":   "bin_header",
-        "start":     "bin_start",
-        "end":       "bin_end",
+        "seqname":   "bin_scaffold_header",
+        "start":     "bin_scaffold_start",
+        "end":       "bin_scaffold_end",
         "source":    "search_tool",
         "score":     "barrnap_e-value",
         "attribute": "barrnap_attribute"
     }
-    barstats_raw = barstats_raw[[i for i in output_colums]]
+    barstats_raw = barstats_raw[[i for i in output_colums]].copy()
     barstats_raw['name'] = barstats_raw['seqname'].\
        str.split(':', expand=True)[0]
     barstats_corrected = barstats_corrected[['header']]
@@ -287,15 +296,15 @@ def read_gff(gff_path:str) -> pd.DataFrame:
 def mbstats_reformat(mbstats_in:pd.DataFrame, search_tool:str, qname:str):
     output_colums = {
         "qseqid":   f"{qname}_header",
-        "sseqid":    "bin_header",
+        "sseqid":    "bin_scaffold_header",
         "pident":    "pident",
         "length":    "length",
         "mismatch":  "mismatch",
         "gapopen":   "gapopen",
         "qstart":   f"{qname}_start",
         "qend":     f"{qname}_end",
-        "sstart":    "bin_start",
-        "send":      "bin_end",
+        "sstart":    "bin_scaffold_start",
+        "send":      "bin_scaffold_end",
         "evalue":    "evalue",
         "bitscore":  "bitscore"
     }

@@ -2,6 +2,7 @@
 import os
 import io
 import subprocess
+import sys
 import argparse
 from contextlib import redirect_stdout
 from snakemake import snakemake
@@ -17,8 +18,6 @@ def get_package_path(local_path):
     abs_snake_path = os.path.join(os.path.dirname(
         os.path.abspath(__file__)),
         local_path)
-    assert os.path.exists(abs_snake_path), \
-        f"Unable to locate key file path; tried {abs_snake_path}"
     return abs_snake_path
 
 
@@ -30,8 +29,7 @@ CONFIG_VALUES = {
     "allow_empty": False,
     "fasta_extention": 'fa',
     "verbosity": 2,
-    "generic_16s":
-       get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
+    "generic_16s": None
 }
 
 # TODO add a section to the readme on this, just this
@@ -51,7 +49,7 @@ FILTER_VALUES = {
 }
 
 
-def join_asvbins(bins:str=None,
+def join_asvbins(bins:str,
                  asv_seqs:str=CONFIG_VALUES['asv_seqs'],
                  output_dir:str=CONFIG_VALUES['output_dir'],
                  blast:bool=CONFIG_VALUES['blast'],
@@ -84,8 +82,8 @@ def join_asvbins(bins:str=None,
     This is the main entry point of the package
     """
     output_dir = os.path.abspath(output_dir)
-    if bins is not None:
-        bins = os.path.abspath(bins)
+    assert bin is not None, "You must specify the bins dir"
+    bins = os.path.abspath(bins)
     if asv_seqs is not None:
         asv_seqs = os.path.abspath(asv_seqs)
     if snake_rule is None:
@@ -98,6 +96,11 @@ def join_asvbins(bins:str=None,
     assert len(snake_rule) > 0, "There are no tasks for join_asvbins to do."
     " Check that all arguments are logical. For example, if you provided"
     " 16s from bins but not asvs then the progam has nothing to do."
+    if generic_16s is None:
+       generic_16s =  get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
+    assert os.path.exists(generic_16s), \
+        "Unable to locate default generic 16s file, try --generic_16s," \
+        f" path tried {generic_16s}"
     all_locals = locals()
     quiet = True if verbosity < 3 else False
     snake_verbose = True if verbosity >= 5 else False
@@ -144,11 +147,12 @@ class ParseKwargs(argparse.Action):
 # TODO clize or click is a beter tool for this
 def main():
     parser = argparse.ArgumentParser(description="Extract 16s from bins using "
-                                    "BLAST and Barrnap.")
+                                    "BLAST and Barrnap.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument( "--snake_rule",  type=str, default="all",
                         help="This script is snakemake under the hood. You"
                         "can run select Snakemake rules with this argument.")
     parser.add_argument("-b", "--bins",  type=str, default=CONFIG_VALUES['bins'],
+                        required=True,
                         help="The bin that you would like to match asvs to."
                         " This can be an fna file that has all the bins"
                         " combided or a directory of bins in seperate fa"
@@ -182,7 +186,7 @@ def main():
     parser.add_argument("--stats",  type=str, default=None,
                         help="Passed directly to snakemake to serve as the"
                         " output location for the stats file.")
-    parser.add_argument("--generic_16s",  type=str,
+    parser.add_argument("-g", "--generic_16s",  type=str,
                         default=CONFIG_VALUES['generic_16s'],
                         help="A set of generic_16s files that may be part of"
                         " your bins.")
@@ -321,10 +325,11 @@ def main():
                         " be tolerated in matches from the ASVs to bin 16S.")
     # args = parser.parse_args()
     parser.set_defaults(func=join_asvbins)
+    if len(sys.argv) < 2:
+        parser.print_help()
+        sys.exit(1)
     args = parser.parse_args()
     args_dict = {i: j for i, j in vars(args).items() if i != 'func'}
     args.func(**args_dict)
-
-
 
 

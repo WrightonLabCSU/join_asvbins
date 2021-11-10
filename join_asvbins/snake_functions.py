@@ -10,16 +10,12 @@ from join_asvbins.utils import df_to_fasta, fasta_to_df, read_mbstats, \
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
                             out_stats_path:str, barrnap_stats_path:str,
-                            search_tool:str='Other', allow_empty:bool=False,
+                            search_tool:str, allow_empty:bool=False,
                             **filter_kargs) -> None:
     """
-    :returns:
+    Combine the statistics from mmseqs or blast with  barrnap.
 
-    :param out_stats_path:
-    :param allow_empty:
-    """
-    """
-    Combine the statistics from mmseqs or blast with the output from barrnap.
+    This function is a monster
 
     :param mbstats_fasta_path: Path to mmseqs or blast fasta
     :param mbstats_stats_path: Path to mmseqs or blast statistics, see docs for format requirements
@@ -35,8 +31,9 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     """
     # TODO add checks that these functions return empty dfs if given empty
     barfasta = fasta_to_df(barrnap_fasta_path)
-    mbstats = read_mbstats(mbstats_stats_path)
-    mbstats = filter_mdstats(mbstats, **filter_kargs)
+    mbstats_raw = read_mbstats(mbstats_stats_path)
+    mbstats_raw.drop_duplicates(inplace=True)
+    mbstats = filter_mdstats(mbstats_raw, **filter_kargs)
     if barfasta.empty and mbstats.empty:
         raise ValueError(f"There are no hits from barrnap or {search_tool},"
                           " this is most likely caused by some irregularity in"
@@ -48,9 +45,9 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                              " files. Consider if your bins are few and small,"
                              " or you could use a larger, more appropriate set"
                              " of generic 16s sequences. If you are confident"
-                             " in your data you can continue by passing "
-                             "--allow_empty to skip this search tool and use "
-                             "only barrnap. Consider using --no_clean also to"
+                             " in your data you can continue by passing"
+                             " --allow_empty to skip this search tool and use "
+                             " only barrnap. Consider using --no_clean also to"
                              " save time.")
         else:
             data = process_barfasta(barfasta)
@@ -75,7 +72,7 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     mbdata = get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path)
     barfasta = process_barfasta(barfasta)
     # save_barnap_stats(barfasta, out_barstats_path)
-    data = combine_fasta(mbdata, barfasta)
+    data = combine_fasta(mbdata, barfasta, search_tool)
     df_to_fasta(data, out_fasta_path)
     make_stage1_statistics(out_stats_path, search_tool, mbstats=mbstats,
                            barfasta=barfasta, barrnap_stats_path=barrnap_stats_path)
@@ -89,44 +86,25 @@ def make_stage1_statistics(output_path:str, search_tool:str,
         barstats_corrected = barfasta[['header', 'start', 'stop']]
         barstats = barstats_reformat(barstats_corrected, barstats, 'bin')
         if mbstats is None:
-            barstats.to_csv(output_path, sep='\t', index=False)
+            barstats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
             return
     if mbstats is not None:
         mbstats = mbstats_reformat(mbstats, search_tool, '16s')
         if barstats is None:
-            mbstats.to_csv(output_path, sep='\t', index=False)
+            mbstats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
             return
     stats = pd.concat([mbstats, barstats])
-    stats.to_csv(output_path, sep='\t', index=False)
+    stats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
 
 
-# def stage1_statistics(mbstats_path:str, barstats_corrected_path:str, barstats_raw_path:str,
-#                       output_path:str, search_tool:str):
-#     mbstats = read_mbstats(mbstats_path)
-#     # 'corected_barrnap_stat.tsv'
-#     barstats_corrected = pd.read_csv(barstats_corrected_path, sep='\t')
-#     barstats_raw = read_gff(barstats_raw_path)
-#     barstats = barstats_reformat(barstats_corrected, barstats_raw, 'bin')
-#     mbstats = mbstats_reformat(mbstats, search_tool, '16s')
-#     stats = pd.concat([mbstats, barstats])
-#     stats.to_csv(output_path, sep='\t', index=False)
-
-
-def stage2_statistics(mbstats_path, output_path, search_tool):
-    mbstats = read_mbstats(mbstats_path)
-    stats = mbstats_reformat(mbstats, search_tool, 'asv')
-    stats.to_csv(output_path, sep='\t', index=False)
-
-
-def filter_from_mbstats(stats_file:str, fasta_file_in:str, fasta_file_out:str,
-                        **filter_kargs):
-                        # min_pct_id:float=None, min_length:int=None,
-                        # min_len_pct:float=None, max_gaps:int=None,
-                        # max_missmatch:int=None):
-        mbstats = read_mbstats(stats_file)
+def filter_from_mbstats(stats_file_in:str, fasta_file_in:str, fasta_file_out:str,
+                        stats_file_out:str, search_tool:str,  **filter_kargs):
+        mbstats = read_mbstats(stats_file_in)
         mbstats = filter_mdstats(mbstats, **filter_kargs)
+        mbstats = mbstats_reformat(mbstats, search_tool, 'asv')
+        mbstats.to_csv(stats_file_out, sep='\t', index=False, na_rep='NA')
         filter_fasta_from_headers(fasta_file_in,
-                                  fasta_file_out, mbstats['sseqid'].values)
+                                  fasta_file_out, mbstats['bin_scaffold_header'].values)
 
 
 def pullseqs_header_name_from_tab(in_fasta_path:str, out_fasta_path:str,
