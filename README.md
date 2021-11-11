@@ -1,9 +1,9 @@
 
 
 
-# Comparing 16s(ASV) to Bins
+# Comparing 16S (ASV) to Bins
 
-This tool provides a method for connecting 16S rRNA sequences to a set of bin-scafolds.
+This tool provides a method for connecting 16S rRNA sequences to a set of bin-scaffolds.
 The code is in essence a wrapper around a Snakemake pipeline that uses barnap and MMseqs2, with the option of substituting BLAST for MMseqs2.
 This is not a perfect system, and is also a work in progress.
 
@@ -16,7 +16,7 @@ The tool can run on as few as 1 core but it will utilize as many cores as specif
 The installation should be no more complex than:
 
 ```
-wget https://raw.githubusercontent.com/rmFlynn/16S_to_bins_project/main/environment.yaml
+wget https://raw.githubusercontent.com/rmFlynn/16s_to_bins_project/main/environment.yaml
 conda env create -f environment.yaml -n join_asvbins
 conda activate join_asvbins
 ```
@@ -65,7 +65,7 @@ The most important command line options are:
 
   --no_clean            Specifies that the directory should NOT be cleaned of results of pass runs. If your run is
                         interrupted this will allow you to to pick up. where you left off. Use at your own risk.
-   -g GENERIC_16S, --generic_16S GENERIC_16S
+   -g GENERIC_16S, --generic_16s GENERIC_16S
                         A set of generic_16s files that may be part of your bins. (default: None)
   --blast               Specifies that blast should be used instead of mmseqs. Good if you have limited memory or don't trust MMseqs2. (default: False)
 ```
@@ -143,6 +143,9 @@ cd <a directory to work from>
 join_asvbins \
         -b <your bins folder or file> \
         -a <ASV FASTA file> \
-        -o <The ouput directory> \
-        -g <A path to our genaric 16S fasta> \
+        -o <The output directory> \
+        -g <Path to a generic 16S fasta> \
 ```
+
+
+
