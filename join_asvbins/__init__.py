@@ -122,13 +122,13 @@ def join_asvbins(bins:str,
                   printrulegraph=print_rulegraph, **snake_args)
         return
     if os.path.exists(output_dir) and not no_clean:
-        snakemake(get_package_path('Snakefile'), workdir=output_dir,
-                  quiet=quiet, verbose=snake_verbose, config=config,
-                  delete_all_output=True, **snake_args)
+        snakemake(get_package_path('Snakefile'), targets=[snake_rule],
+                  workdir=output_dir, quiet=quiet, verbose=snake_verbose,
+                  config=config, delete_all_output=True, **snake_args)
     # Note that stats='stats should work'
-    snakemake(get_package_path('Snakefile'), workdir=output_dir, quiet=quiet,
-              verbose=snake_verbose, config=config, cores=threads,
-              notemp=keep_temp, **snake_args)
+    snakemake(get_package_path('Snakefile'), targets=[snake_rule],
+              workdir=output_dir, quiet=quiet, verbose=snake_verbose,
+              config=config, cores=threads, notemp=keep_temp, **snake_args)
 
 
 class ParseKwargs(argparse.Action):
