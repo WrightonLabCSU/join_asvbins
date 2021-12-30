@@ -5,6 +5,7 @@ version: 2.1
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+# Stolen mostly from: https://stackoverflow.com/questions/58243255/circleci-testing-with-specific-miniconda-python-and-numpy-versions
 jobs:
   build-and-test:
     docker:
@@ -35,7 +36,7 @@ jobs:
             conda create -n myenv python=$PYTHON_VERSION
             wget https://raw.githubusercontent.com/rmFlynn/16s_to_bins_project/main/environment.yaml
             conda env create -f environment.yaml -n join_asvbins
-            conda activate join_asvbins
+            source activate join_asvbins
             pytest
 
 # Invoke jobs via workflows
