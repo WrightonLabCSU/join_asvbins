@@ -1,10 +1,11 @@
-"""Tools for extract 16s from scaffolds"""
+"""Tools for extract 16S from scaffolds"""
 import os
 import pandas as pd
 import numpy as np
 from skbio import write as write_fa
 from skbio import read as read_fa
 from skbio import Sequence
+import warnings
 
 # This is the header format for blast and mmseqs stats
 MBSTATS_NAMES=[
@@ -33,7 +34,7 @@ def fasta_to_df(path, headers=None):
                                for seq in read_fa(path, format='fasta')})
     except ValueError:
         warnings.warn('Some fasta file was not read, posbly it is the wrong'
-                      'format.', SintaxWarning)
+                      'format.')
         return pd.DataFrame()
     dafr = dafr.T
     dafr.reset_index(inplace=True)

@@ -29,7 +29,7 @@ CONFIG_VALUES = {
     "allow_empty": False,
     "fasta_extention": 'fa',
     "verbosity": 2,
-    "generic_16s": None
+    "generic_16S": None
 }
 
 # TODO add a section to the readme on this, just this
@@ -53,7 +53,7 @@ def join_asvbins(bins:str,
                  asv_seqs:str=CONFIG_VALUES['asv_seqs'],
                  output_dir:str=CONFIG_VALUES['output_dir'],
                  blast:bool=CONFIG_VALUES['blast'],
-                 generic_16s:str=CONFIG_VALUES['generic_16s'],
+                 generic_16S:str=CONFIG_VALUES['generic_16S'],
                  verbosity:str=CONFIG_VALUES['verbosity'],
                  allow_empty:bool=CONFIG_VALUES["allow_empty"],
                  s1_min_pct_id:float=FILTER_VALUES['s1_min_pct_id'],
@@ -71,7 +71,7 @@ def join_asvbins(bins:str,
                  s1_min_len_pct:float=FILTER_VALUES['s1_min_len_pct'],
                  s2_min_len_pct:float=FILTER_VALUES['s2_min_len_pct'],
                  max_gaps:int=FILTER_VALUES['max_gaps'], snake_rule:str=None,
-                 fasta_extention:str='fa', bin_16s_seqs:str=None,
+                 fasta_extention:str='fa', bin_16S_seqs:str=None,
                  max_missmatch:int=FILTER_VALUES['max_missmatch'],
                  no_clean:bool=False, no_filter:bool=False, stats:str=None,
                  snake_args:dict={}, print_dag:bool=False,
@@ -87,20 +87,20 @@ def join_asvbins(bins:str,
     if asv_seqs is not None:
         asv_seqs = os.path.abspath(asv_seqs)
     if snake_rule is None:
-        if asv_seqs is not None and bin_16s_seqs is None:
+        if asv_seqs is not None and bin_16S_seqs is None:
             snake_rule = 'all'
         elif asv_seqs is not None:
             snake_rule = "search2_asv_bin_matches"
-        elif bin_16s_seqs is None:
-            snake_rule = "search1_16s_bin_finds"
+        elif bin_16S_seqs is None:
+            snake_rule = "search1_16S_bin_finds"
     assert len(snake_rule) > 0, "There are no tasks for join_asvbins to do."
     " Check that all arguments are logical. For example, if you provided"
-    " 16s from bins but not asvs then the progam has nothing to do."
-    if generic_16s is None:
-       generic_16s =  get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
-    assert os.path.exists(generic_16s), \
-        "Unable to locate default generic 16s file, try --generic_16s," \
-        f" path tried {generic_16s}"
+    " 16S from bins but not asvs then the progam has nothing to do."
+    if generic_16S is None:
+       generic_16S =  get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
+    assert os.path.exists(generic_16S), \
+        "Unable to locate default generic 16S file, try --generic_16S," \
+        f" path tried {generic_16S}"
     all_locals = locals()
     quiet = True if verbosity < 3 else False
     snake_verbose = True if verbosity >= 5 else False
@@ -146,7 +146,7 @@ class ParseKwargs(argparse.Action):
 
 # TODO clize or click is a beter tool for this
 def main():
-    parser = argparse.ArgumentParser(description="Extract 16s from bins using "
+    parser = argparse.ArgumentParser(description="Extract 16S from bins using "
                                     "BLAST and Barrnap.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument( "--snake_rule",  type=str, default="all",
                         help="This script is snakemake under the hood. You"
@@ -186,9 +186,9 @@ def main():
     parser.add_argument("--stats",  type=str, default=None,
                         help="Passed directly to snakemake to serve as the"
                         " output location for the stats file.")
-    parser.add_argument("-g", "--generic_16s",  type=str,
-                        default=CONFIG_VALUES['generic_16s'],
-                        help="A set of generic_16s files that may be part of"
+    parser.add_argument("-g", "--generic_16S",  type=str,
+                        default=CONFIG_VALUES['generic_16S'],
+                        help="A set of generic_16S files that may be part of"
                         " your bins.")
     parser.add_argument('-v', '--verbosity', action='count',
                         default=CONFIG_VALUES['verbosity'], help=
@@ -227,10 +227,10 @@ def main():
                         " This is mostly for debuging.")
     parser.add_argument("--allow_empty", action='store_true',
                         help="Specifies that empty results in stage 1 search,"
-                        " AKA searching 16s in bins, should be tolerated, and"
+                        " AKA searching 16S in bins, should be tolerated, and"
                         " the program should continue with limited result")
-    parser.add_argument("--bin_16s_seqs", type=str, default=None,
-                        help="Provide a fasta file of 16s sequences to surve"
+    parser.add_argument("--bin_16S_seqs", type=str, default=None,
+                        help="Provide a fasta file of 16S sequences to surve"
                         " as input to the sectond search in the sequence,"
                         " the search matching bins against asv's. If this"
                         " argument is provided then the bins argument will"
@@ -273,7 +273,7 @@ def main():
                         help="This value in cordination with the"
                         " min_len_pct_no_overlap argument conditions a rule"
                         " that alows for only for matches, in the seaching of"
-                        " generic 16s sequences with bins, where the 16s"
+                        " generic 16S sequences with bins, where the 16S"
                         " overlaps the beganing or end of the bin, and vise"
                         " versa AND is of this length or longer.")
     parser.add_argument("--min_len_pct_no_overlap", type=int,
@@ -281,17 +281,17 @@ def main():
                         help="This value in cordination with the"
                         " min_len_with_overlap argument conditions a rule"
                         " that alows for only for matches, in the seaching of"
-                        " generic 16s sequences with bins, where the 16s"
+                        " generic 16S sequences with bins, where the 16S"
                         " overlaps the beganing or end of the bin, and vise"
                         " versa OR has this percent of the length covered.")
     parser.add_argument("--s1_min_pct_id", type=float,
                         default=FILTER_VALUES['s1_min_pct_id'],
                         help="This limits the percent identity that will be"
-                        " tolerated in matching generic 16s scaffold to bins")
+                        " tolerated in matching generic 16S scaffold to bins")
     parser.add_argument("--s2_min_pct_id", type=float,
                         default=FILTER_VALUES['s2_min_pct_id'],
                         help="This limits the percent identity that can be"
-                        " used for matching ASVs to extracted 16s matches")
+                        " used for matching ASVs to extracted 16S matches")
     #NOTE to self: We use BLAST to identify the regions in the input genome
     #that match the alleles in the ResFinder database. BLAST finds the best
     #local alignment (overlap) between a sequence in the input genome and an
@@ -301,20 +301,20 @@ def main():
     parser.add_argument("--s1_min_length", type=int,
                         default=FILTER_VALUES['s1_min_length'],
                         help="This limits how short the length of the match"
-                        " from the generic 16s to bins can be for "
+                        " from the generic 16S to bins can be for "
                         "consideration.")
     parser.add_argument("--s2_min_length", type=int,
                         default=FILTER_VALUES['s2_min_length'],
                         help="This limits how short the length of the match"
-                        " from the ASVs to bin 16s can be for consideration.")
+                        " from the ASVs to bin 16S can be for consideration.")
     parser.add_argument("--s1_min_len_pct", type=float,
                         default=FILTER_VALUES['s1_min_len_pct'],
                         help="This limits how short the length of the match"
-                        " from the ASVs to bin 16s can be for consideration.")
+                        " from the ASVs to bin 16S can be for consideration.")
     parser.add_argument("--s2_min_len_pct", type=float,
                         default=FILTER_VALUES['s2_min_len_pct'],
                         help="This limits how short the length of the match"
-                        " from the ASVs to bin 16s can be for consideration.")
+                        " from the ASVs to bin 16S can be for consideration.")
     parser.add_argument("--max_gaps", type=int,
                         default=FILTER_VALUES['max_gaps'],
                         help="This limits the number of gaps that will be"

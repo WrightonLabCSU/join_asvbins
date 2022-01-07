@@ -16,10 +16,13 @@ The tool can run on as few as 1 core but it will utilize as many cores as specif
 The installation should be no more complex than:
 
 ```
-wget https://raw.githubusercontent.com/rmFlynn/16s_to_bins_project/main/environment.yaml
+wget https://raw.githubusercontent.com/rmFlynn/16S_to_bins_project/main/environment.yaml
 conda env create -f environment.yaml -n join_asvbins
 conda activate join_asvbins
 ```
+
+Creating a conda enviroment is the best way to run tool becouse it depends not only on several python librarys but also on severaly comandline tools.
+If you wish to, or a forced by circumstance, to install this tool outside of conda you should have all the information you need in the enviroment.yaml file to do so.
 
 ## Output
 
@@ -53,7 +56,7 @@ The most important command line options are:
   -a ASV_SEQS, --asv_seqs ASV_SEQS
                         The asvs you would like to attach to your bins.
 
-  --bin_16s_seqs BIN_16S_SEQS
+  --bin_16S_seqs BIN_16S_SEQS
                         Provide a fasta file of 16S sequences to serve as input to the second search in the sequence, the search matching bins against asv's. If this argument is provided then the bins argument will be ignored and the stage on fast and stats.tab not be made. Note
                         that your sequences must be trimmed, before you run this program. (default: None)
 
@@ -65,17 +68,17 @@ The most important command line options are:
 
   --no_clean            Specifies that the directory should NOT be cleaned of results of pass runs. If your run is
                         interrupted this will allow you to to pick up. where you left off. Use at your own risk.
-   -g GENERIC_16S, --generic_16s GENERIC_16S
-                        A set of generic_16s files that may be part of your bins. (default: None)
+   -g GENERIC_16S, --generic_16S GENERIC_16S
+                        A set of generic_16S files that may be part of your bins. (default: None)
   --blast               Specifies that blast should be used instead of mmseqs. Good if you have limited memory or don't trust MMseqs2. (default: False)
 ```
 But there are many more, use `join_asvbins -h` to see all of them.
 
-To get the full benefits of the program, it is expected that a user will run the program having specified at least `--bins`, `--asv_seqs`, `--output_dir` and `--generic_16s`, or more simply `-b`, `-a`, `-o` and `-g`, with appropriate values as described above. Running with these arguments and without the --candidates argument will result in a full run, a full run is the name we use to describe a run that produces all the main output data sets, that is to say  the candidate and match data sets.
+To get the full benefits of the program, it is expected that a user will run the program having specified at least `--bins`, `--asv_seqs`, `--output_dir` and `--generic_16S`, or more simply `-b`, `-a`, `-o` and `-g`, with appropriate values as described above. Running with these arguments and without the --candidates argument will result in a full run, a full run is the name we use to describe a run that produces all the main output data sets, that is to say  the candidate and match data sets.
 
 If the asv_seqs argument is not provided, then only the data for candidate ASVs will be produced. If the --candidates argument is provided, then the --bins argument will be ignored and only data for matches to the file specified by --candidates will be produced. In the documentation, we refer to two of these options as a partial run.
 
-The `--generic_16s` option is currently required, but there are plans to make this optional. This argument must point to a FASTA file that can be used to find candidate 16S sequences. It should therefore be a large collection of diverse 16S sequences, for example we use a clustered version of the SILVA database. Once we move our database to an accessible location, we will give the user the option of admitting this argument and downloading our DB to use instead.
+The `--generic_16S` option is currently required, but there are plans to make this optional. This argument must point to a FASTA file that can be used to find candidate 16S sequences. It should therefore be a large collection of diverse 16S sequences, for example we use a clustered version of the SILVA database. Once we move our database to an accessible location, we will give the user the option of admitting this argument and downloading our DB to use instead.
 
 A longer exploration of options will also be added to the wiki soon, and some of the more important advanced options are in this document, in a section by the same name. If it is not clear to you how to use these arguments, please look at the example section below.
 
@@ -83,7 +86,7 @@ A longer exploration of options will also be added to the wiki soon, and some of
 
 Most of the program is hidden from the user and it is hoped that they will never need to know the fine details of the process, but if something happens to go wrong then this may help explain why .
 
-Under the hood join_asv_bins activates a [Snakemake](https://snakemake.readthedocs.io/en/stable/) pipeline, which orders tasks based on the inputs that are required, and the outputs that are expected. The order of tasks takes the form of a Directed Acyclic graph (DAG) an example of which is shown below. In the example below each task is listed in order from first to run at the top to last to run at the bottom.  For example the last task to run is named all, and its job is only to ensure all the final output files are created. It is also important to know that your dog may not look like this one. This DAG depends on the options being present for a full run, producing candidate, and match sequences and statistics. If you do a partial run option your DAG will contain only a fraction of these steps.
+Under the hood join_asv_bins activates a [Snakemake](https://snakemake.readthedocs.io/en/stable/) pipeline, which orders tasks based on the inputs that are required, and the outputs that are expected. The order of tasks takes the form of a Directed Acyclic graph (DAG) an example of which is shown below. In the example below each task is listed in order from first to run at the top to last to run at the bottom.  For example the last task to run is named all, and its job is only to ensure all the final output files are created. It is also important to know that your DAG may not look like this one. This DAG depends on the options being present for a full run, producing candidate, and match sequences and statistics. If you do a partial run option your DAG will contain only a fraction of these steps.
 
 
 ![example_dag](./images/salmonella_dag.jpg)
@@ -110,14 +113,15 @@ This option can give hours back to the user, but it is **ADVANCED**. It is not g
 -  [ ] Compare my results to more manual equivalents
 -  [ ] Complete the outputs section of this readme
 -  [ ] Add an expanded options section to the wiki
+-  [ ] Move the DAG section to the wiki and replace it with a outline of the process with outputs
 -  [ ] Add a slum example below
+-  [ ] Make that temp file go away
 - [ ] faidx is too loud in verbose mode
-- [ ]
-
+- [ ] Add qiime to the environment.yml
 
 
 # Current Testers in the Wrighton Lab
-Please use the `-g` AKA `--generic_16s` argument to run the program, pulling data from git LFS is currently problematic in python. This will be fixed in the future but for now you can contact me and I will provide a clustered SILVA dataset for reproducibility.
+Please use the `-g` AKA `--generic_16S` argument to run the program, pulling data from git LFS is currently problematic in python. This will be fixed in the future but for now you can contact me and I will provide a clustered SILVA dataset for reproducibility.
 
 ## Slurm
 

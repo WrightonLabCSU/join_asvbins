@@ -44,7 +44,7 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                              " may be caused by some irregularity the input"
                              " files. Consider if your bins are few and small,"
                              " or you could use a larger, more appropriate set"
-                             " of generic 16s sequences. If you are confident"
+                             " of generic 16S sequences. If you are confident"
                              " in your data you can continue by passing"
                              " --allow_empty to skip this search tool and use "
                              " only barrnap. Consider using --no_clean also to"
@@ -89,7 +89,7 @@ def make_stage1_statistics(output_path:str, search_tool:str,
             barstats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
             return
     if mbstats is not None:
-        mbstats = mbstats_reformat(mbstats, search_tool, '16s')
+        mbstats = mbstats_reformat(mbstats, search_tool, '16S')
         if barstats is None:
             mbstats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
             return
