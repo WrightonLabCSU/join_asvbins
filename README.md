@@ -86,10 +86,12 @@ A longer exploration of options will also be added to the wiki soon, and some of
 
 Most of the program is hidden from the user and it is hoped that they will never need to know the fine details of the process, but if something happens to go wrong then this may help explain why .
 
-Under the hood join_asv_bins activates a [Snakemake](https://snakemake.readthedocs.io/en/stable/) pipeline, which orders tasks based on the inputs that are required, and the outputs that are expected. The order of tasks takes the form of a Directed Acyclic graph (DAG) an example of which is shown below. In the example below each task is listed in order from first to run at the top to last to run at the bottom.  For example the last task to run is named all, and its job is only to ensure all the final output files are created. It is also important to know that your DAG may not look like this one. This DAG depends on the options being present for a full run, producing candidate, and match sequences and statistics. If you do a partial run option your DAG will contain only a fraction of these steps.
+/*:Under the hood join_asv_bins activates a [Snakemake](https://snakemake.readthedocs.io/en/stable/) pipeline, which orders tasks based on the inputs that are required, and the outputs that are expected. The order of tasks takes the form of a Directed Acyclic graph (DAG) an example of which is shown below. In the example below each task is listed in order from first to run at the top to last to run at the bottom.  For example the last task to run is named all, and its job is only to ensure all the final output files are created. It is also important to know that your DAG may not look like this one. This DAG depends on the options being present for a full run, producing candidate, and match sequences and statistics. If you do a partial run option your DAG will contain only a fraction of these steps.
+*/
+Below you can see a visualization of the entire matching pipeline complete with major inputs and outputs. This figure can give an approximate idea of how the pipeline works in a full or partial run, but it is an abstraction, not a literal example of the programmed pipeline.
 
 
-![example_dag](./images/salmonella_dag.jpg)
+![example_dag](./images/dag.png)
 
 ## Advanced Options
 
@@ -104,12 +106,12 @@ This option can give hours back to the user, but it is **ADVANCED**. It is not g
 
 ## To do
 -  [ ] Split mmseqs into multi steps
-- [ ] Rework the pandas code so that there is no warning
-- [ ] Stop the fai warnings from barrnap, make new rules if you must.
+-  [ ] Rework the pandas code so that there is no warning
+-  [ ] Stop the fai warnings from barrnap, make new rules if you must.
 -  [ ] More general tests
 -  [ ] Add a test to run full snake pipelines. (I am close on this)
-* [x] Add a better file path does not exist message, snakemakes does not handle this well with this setup.
-* [x] Check that verbose works as well as quiet dose
+*  [x] Add a better file path does not exist message, snakemakes does not handle this well with this setup.
+*  [x] Check that verbose works as well as quiet dose
 -  [ ] Compare my results to more manual equivalents
 -  [ ] Complete the outputs section of this readme
 -  [ ] Add an expanded options section to the wiki
