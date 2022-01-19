@@ -7,7 +7,7 @@ This tool provides a method for connecting 16S rRNA sequences to a set of bin-sc
 The code is in essence a wrapper around a Snakemake pipeline that uses barnap and MMseqs2, with the option of substituting BLAST for MMseqs2.
 This is not a perfect system, and is also a work in progress.
 
-## Install
+## Requirements
 
 The tool can run on as few as 1 core but it will utilize as many cores as specified by the -t argument.  MMseqs2 is much faster than BLAST but will require more memory, often in the range of 40 - 60 gigabytes depending on the size of the target data set. Using blast will decrease the memory requirements but will also require a long run time.
 
