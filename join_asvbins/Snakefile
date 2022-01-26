@@ -6,14 +6,21 @@ import pandas as pd
 from join_asvbins.snake_functions import combine_mbstats_barrnap, \
     pullseqs_header_name_from_tab, filter_from_mbstats
 
+
+SEARCH1_OUTPUT = ["candidate_statistics.tsv", "candidate_sequences.fna",]
+SEARCH2_OUTPUT = ["match_statistics.tsv", "match_sequences.fna"]
+QIIME_OUTPUT = ["match_sequences.qza"]
+
 search_tool = 'blast' if config['blast'] else 'mmseqs'
 # TODO decide if this is neccicary
 # output_name = config.get('output_name')
 bins_path = config.get('bins')
+candidate_asv_seqs = config.get('candidate_asv_seqs')
 asv_seqs_path = config.get('asv_seqs')
 fasta_extention = config.get('fasta_extention')
 generic_16s_path = config.get('generic_16s')
 allow_empty= config.get('allow_empty')
+qiime_out= config.get('qiime_out')
 s1_mmseqs_sensitivity = config.get('s1_mmseqs_sensitivity')
 s2_mmseqs_sensitivity = config.get('s2_mmseqs_sensitivity')
 min_len_with_overlap = config.get("min_len_with_overlap")
@@ -27,30 +34,55 @@ s2_min_len_pct = config.get('min_len_pct')
 s2_max_gaps = config.get('max_gaps')
 s2_max_missmatch = config.get('max_missmatch')
 verbosity= config.get('verbosity')
-localy_combined_bins = "all_bins_combined"
+LOCALY_COMBINED_BINS = "all_bins_combined"
+UNQIIME_ASV_FASTA = "asv_seqs.fa"
+from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
+
+HTTP = HTTPRemoteProvider()
 
 
 
 # Set the appropriate output, This can be moved
 if os.path.isdir(bins_path):
     bins_folder = bins_path
-    path_to_combined_bins = localy_combined_bins
+    path_to_combined_bins = LOCALY_COMBINED_BINS
 else:
-    bins_folder = "None"
+    bins_folder = "NA"
     path_to_combined_bins = bins_path
 
+# Set the appropriate output, This also can be moved
+if asv_seqs_path.endswith('.qza'):
+    asv_seqs_qva = asv_seqs_path
+    asv_seqs_fa = UNQIIME_ASV_FASTA
+else:
+    asv_seqs_qva = 'NA'
+    asv_seqs_fa = asv_seqs_path
+
+
+def set_program_output(asv_seqs_path, candidate_asv_seqs):
+    if asv_seqs_path is not None and candidate_asv_seqs is None:
+        return SEARCH1_OUTPUT + SEARCH2_OUTPUT + (QIIME_OUTPUT if qiime_out else [])
+    elif asv_seqs_path is not None:
+        return SEARCH2_OUTPUT + (QIIME_OUTPUT if qiime_out else [])
+    elif candidate_asv_seqs is None:
+        return SEARCH1_OUTPUT
 
 rule all:
+    input:
+            set_program_output(asv_seqs_path, candidate_asv_seqs)
+
+rule all_qiime:
     input:
         "candidate_statistics.tsv",
         "candidate_sequences.fna",
         "match_statistics.tsv",
-        "match_sequences.fna"
+        "match_sequences.fna",
+        "match_sequences.qza"
 
 
 rule search1_16s_bin_finds:
     input:
-        "candidate_statistics.tsv",
+        ("candidate_statistics.tsv" if candidate_asv_seqs is None else candidate_asv_seqs),
         "candidate_sequences.fna"
 
 
@@ -59,6 +91,12 @@ rule search2_asv_bin_matches:
         "match_statistics.tsv",
         "match_sequences.fna"
 
+
+rule search2_asv_bin_matches_qiime:
+    input:
+        "match_statistics.tsv",
+        "match_sequences.fna",
+        "match_sequences.qza"
 
 # rule stage1_set_output_stats:
 #     input:
@@ -101,11 +139,45 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
                                 min_length=s1_min_length)
 
 
+rule get_qiime2_environment:
+    input:
+        HTTP.remote("data.qiime2.org/distro/core/qiime2-2021.11-py38-linux-conda.yml", keep_local=True)
+    output:
+        temp('conda_qiime2.yml')
+    run:
+        outputName = os.path.basename(input[0])
+        shell("mv {input} {output}")
+
+
+rule get_asv_fa_folder_from_qiime:
+    input:
+        asv_seqs_qva
+    output:
+        temp(directory("qiime_data"))
+    conda:
+        'conda_qiime2.yml'
+    shell:
+       """
+       qiime tools export \\
+            --input-path {input[0]} \\
+            --output-path {output}
+       """
+
+rule get_fa_from_qiime_folder:
+    input:
+        directory("qiime_data")
+    output:
+        UNQIIME_ASV_FASTA
+    shell:
+       """
+       cat {input}/*.fasta > {output}
+       """
+
 rule combine_input_fa:
     input:
         bins_folder
     output:
-        temp(localy_combined_bins)
+        temp(LOCALY_COMBINED_BINS)
     run:
        input_list = glob.glob(os.path.join(input[0], f"*.{fasta_extention}"))
        if fasta_extention.endswith('gz'):
@@ -178,7 +250,7 @@ rule pullseq_header_name:
 rule mmseqs_stage2_search:
     input:
        "candidate_sequences.fna", # Target
-       asv_seqs_path # Query
+       asv_seqs_fa # Query
     output:
        temp(directory("mmseqs_stage2_db")),
        temp("stage2_asvs_mmseqs.tab")
@@ -235,7 +307,7 @@ rule stage2_filtering:
 rule blast_stage2_search:
     input:
        "barrnap_and_blast_asvs.fna", # Target
-        asv_seqs_path, # Query
+        asv_seqs_fa, # Query
     output:
         temp(directory("blast_stage2_db")),
         temp("stage2_asvs_blast.tab")
@@ -300,3 +372,20 @@ rule run_barrnap_fasta_trim:
     shell:
         "xargs samtools faidx {input[0]} < {input[1]} > {output[0]}"
 
+
+
+rule export_fa_to_qiime:
+    input:
+        "match_sequences.fna",
+        'conda_qiime2.yml'
+    output:
+        protected("match_sequences.qza")
+    conda:
+        'conda_qiime2.yml'
+    shell:
+       """
+       qiime tools import\\
+            --input-path {input[0]} \\
+            --output-path {output} \\
+            --type SampleData[Sequences]
+       """
