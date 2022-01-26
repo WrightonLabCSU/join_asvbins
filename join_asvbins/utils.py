@@ -1,4 +1,4 @@
-"""Tools for extract 16s from scaffolds"""
+"""Tools for extract 16S from scaffolds"""
 import os
 import pandas as pd
 import numpy as np
