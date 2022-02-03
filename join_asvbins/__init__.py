@@ -32,6 +32,7 @@ CONFIG_VALUES = {
     "generic_16s": None,
     "candidate_asv_seqs": None,
     "qiime_out": False,
+    "candidate_16S_seqs": None
 }
 
 # TODO add a section to the readme on this, just this
@@ -81,7 +82,8 @@ def join_asvbins(bins:str,
                  keep_temp=False,
                  qiime_out=CONFIG_VALUES['qiime_out'],
                  print_rulegraph:bool=False,
-                 threads:int=1):
+                 threads:int=1,
+                 candidate_16S_seqs:str=CONFIG_VALUES["candidate_16S_seqs"]):
     """
     This is the main entry point of the package
     """
@@ -233,7 +235,7 @@ def main():
                         help="Specifies that empty results in stage 1 search,"
                         " AKA searching 16S in bins, should be tolerated, and"
                         " the program should continue with limited result")
-    parser.add_argument("--candidate_asv_seqs", type=str, default=None,
+    parser.add_argument("--candidate_16S_seqs", type=str, default=None,
                         help="Provide a fasta file of 16S sequences to surve"
                         " as input to the second search in the sequence,"
                         " the search matching bins against asv's. If this"

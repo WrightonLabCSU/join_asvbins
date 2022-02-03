@@ -30,7 +30,6 @@ def resolve_dup_gene_locs(mbstats:str, bs_name:str, bs_start:str,
     mbstats = mbstats[mbstats.apply(check_overlap, axis=1)]
     return mbstats
 
-
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
                             out_stats_path:str, barrnap_stats_path:str,

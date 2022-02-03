@@ -7,11 +7,9 @@ from join_asvbins.snake_functions import combine_mbstats_barrnap, \
     pullseqs_header_name_from_tab, filter_from_mbstats
 
 
-SEARCH1_OUTPUT = ["candidate_statistics.tsv", "candidate_sequences.fna",]
-SEARCH2_OUTPUT = ["match_statistics.tsv", "match_sequences.fna"]
-QIIME_OUTPUT = ["match_sequences.qza"]
 
 search_tool = 'blast' if config['blast'] else 'mmseqs'
+candidate_16S_seqs = config.get('candidate_16S_seqs')
 # TODO decide if this is neccicary
 # output_name = config.get('output_name')
 bins_path = config.get('bins')
@@ -51,39 +49,54 @@ else:
     path_to_combined_bins = bins_path
 
 # Set the appropriate output, This also can be moved
-if asv_seqs_path.endswith('.qza'):
+if asv_seqs_path is None:
+    asv_seqs_qva = 'NA'
+    asv_seqs_fa = 'NA'
+elif asv_seqs_path.endswith('.qza'):
     asv_seqs_qva = asv_seqs_path
     asv_seqs_fa = UNQIIME_ASV_FASTA
 else:
     asv_seqs_qva = 'NA'
     asv_seqs_fa = asv_seqs_path
 
+CANDIDATE_16S_SEQS_PATH = 'candidate_sequences.fna'
 
-def set_program_output(asv_seqs_path, candidate_asv_seqs):
+if candidate_16S_seqs is None:
+    candidate_16S_seqs = CANDIDATE_16S_SEQS_PATH
+
+
+def set_program_output(asv_seqs_path, candidate_asv_seqs, candidate_16S_seqs):
+    search1_output = ["candidate_statistics.tsv", CANDIDATE_16S_SEQS_PATH]
+    search2_output = ["match_statistics.tsv", "match_sequences.fna"]
+    qiime_output = ["match_sequences.qza"]
     if asv_seqs_path is not None and candidate_asv_seqs is None:
-        return SEARCH1_OUTPUT + SEARCH2_OUTPUT + (QIIME_OUTPUT if qiime_out else [])
-    elif asv_seqs_path is not None:
-        return SEARCH2_OUTPUT + (QIIME_OUTPUT if qiime_out else [])
-    elif candidate_asv_seqs is None:
-        return SEARCH1_OUTPUT
+        return search1_output + search2_output + (qiime_output if qiime_out else [])
+    if asv_seqs_path is not None:
+        return search2_output + (qiime_output if qiime_out else [])
+    if candidate_asv_seqs is None:
+        return search1_output
+    if candidate_16S_seqs is not None:
+        return search2_output
+
 
 rule all:
     input:
-            set_program_output(asv_seqs_path, candidate_asv_seqs)
-
-rule all_qiime:
-    input:
-        "candidate_statistics.tsv",
-        "candidate_sequences.fna",
-        "match_statistics.tsv",
-        "match_sequences.fna",
-        "match_sequences.qza"
+        set_program_output(asv_seqs_path, candidate_asv_seqs, candidate_16S_seqs)
 
 
-rule search1_16s_bin_finds:
-    input:
-        ("candidate_statistics.tsv" if candidate_asv_seqs is None else candidate_asv_seqs),
-        "candidate_sequences.fna"
+# rule all_qiime:
+#     input:
+#         "candidate_statistics.tsv",
+#         "candidate_sequences.fna",
+#         "match_statistics.tsv",
+#         "match_sequences.fna",
+#         "match_sequences.qza"
+#
+#
+# rule search1_16s_bin_finds:
+#     input:
+#         ("candidate_statistics.tsv" if candidate_asv_seqs is None else candidate_asv_seqs),
+#         "candidate_sequences.fna"
 
 
 rule search2_asv_bin_matches:
@@ -126,7 +139,7 @@ rule combine_barrnap_with_other: # where other is blast or mmseqs
         barrnap_fasta_path = "barrnap_fasta-16S.fna",
         barrnap_stats_path= "barrnap_16S-gff.gff"
     output:
-        out_fasta_path = protected("candidate_sequences.fna"),
+        out_fasta_path = protected(candidate_16S_seqs),
         out_stats_path = protected("candidate_statistics.tsv")
     run:
         combine_mbstats_barrnap(**input,
@@ -163,15 +176,17 @@ rule get_asv_fa_folder_from_qiime:
             --output-path {output}
        """
 
+
 rule get_fa_from_qiime_folder:
     input:
         directory("qiime_data")
     output:
-        UNQIIME_ASV_FASTA
+        temp(UNQIIME_ASV_FASTA)
     shell:
        """
        cat {input}/*.fasta > {output}
        """
+
 
 rule combine_input_fa:
     input:
@@ -249,7 +264,7 @@ rule pullseq_header_name:
 
 rule mmseqs_stage2_search:
     input:
-       "candidate_sequences.fna", # Target
+       candidate_16S_seqs, # Target
        asv_seqs_fa # Query
     output:
        temp(directory("mmseqs_stage2_db")),
@@ -287,7 +302,7 @@ rule mmseqs_stage2_search:
 rule stage2_filtering:
     input:
        stats_file_in = f"stage2_asvs_{search_tool}.tab",
-       fasta_file_in = "candidate_sequences.fna"
+       fasta_file_in = candidate_16S_seqs
     output:
         fasta_file_out = protected("match_sequences.fna"),
         stats_file_out = protected("match_statistics.tsv")
