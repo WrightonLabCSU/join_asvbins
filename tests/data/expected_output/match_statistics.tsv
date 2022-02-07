@@ -1,0 +1,6 @@
+ASV_header	bin_scaffold_header	pident	length	mismatch	gapopen	ASV_start	ASV_end	bin_scaffold_start	bin_scaffold_end	evalue	bitscore	search_tool
+0ea3e4fc58f1017cb8005d1404bd1310	KS_meg_bin.20_k141_303248	99.6	254	1	0	1	254	497	750	1.919e-140	452	MMseqs2
+260a212752cd850bef736ebc3c991202	KS_meg_bin.20_k141_303248	99.6	254	1	0	1	254	497	750	1.919e-140	452	MMseqs2
+3c1aed8cd9744f91b1482ed1171553de	KS_meg_bin.20_k141_303248	99.6	254	1	0	1	254	497	750	1.919e-140	452	MMseqs2
+5e18094f37d33836726fabc09f8e46fc	KS_meg_bin.20_k141_303248	100.0	254	0	0	1	254	497	750	3.91e-142	457	MMseqs2
+fc62d75f536ec941230f549d5c00db09	KS_meg_bin.20_k141_303248	99.6	254	1	0	1	254	497	750	1.919e-140	452	MMseqs2

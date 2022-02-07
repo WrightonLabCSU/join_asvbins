@@ -6,6 +6,31 @@ from join_asvbins.utils import df_to_fasta, fasta_to_df, read_mbstats, \
     barstats_reformat, combine_fasta, filter_fasta_from_headers, read_gff, \
     get_stage1_mbstats_fasta
 
+CANDIDATE_16S_SEQS_PATH = 'candidate_sequences.fna'
+
+
+def resolve_dup_gene_locs(mbstats:str, bs_name:str, bs_start:str,
+                          bs_end:str, values:str, ascending:bool):
+    gene_locs = {}
+    def check_overlap(line:pd.Series):
+        line_name = line[bs_name]
+        line_start = min(line[bs_start], line[bs_end])
+        line_end = max(line[bs_start], line[bs_end])
+        if line_name in gene_locs:
+            match_start = gene_locs[line_name]['start']
+            match_end = gene_locs[line_name]['end']
+            if match_start <= line_start < match_end:
+                return False
+            if match_start <= line_end < match_end:
+                return False
+        gene_locs[line_name] = {
+            'start': line_start,
+            'end': line_end,
+        }
+        return True
+    mbstats.sort_values(values, inplace=True, ascending=False)
+    mbstats = mbstats[mbstats.apply(check_overlap, axis=1)]
+    return mbstats
 
 def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
                             barrnap_fasta_path:str, out_fasta_path:str,
@@ -75,20 +100,51 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     data = combine_fasta(mbdata, barfasta, search_tool)
     df_to_fasta(data, out_fasta_path)
     make_stage1_statistics(out_stats_path, search_tool, mbstats=mbstats,
-                           barfasta=barfasta, barrnap_stats_path=barrnap_stats_path)
+                           barfasta=barfasta,
+                           barrnap_stats_path=barrnap_stats_path)
+
+
+def set_program_output(bins_path:str=None, asv_seqs_path:str=None,  qiime_out:bool=False):
+    search1_output = ["candidate_statistics.tsv", CANDIDATE_16S_SEQS_PATH]
+    search2_output = ["match_statistics.tsv", "match_sequences.fna"]
+    qiime_output = ["match_sequences.qza"]
+    program_output = []
+    if bins_path is not None:
+        program_output += search1_output
+    if asv_seqs_path is not None:
+        program_output += search2_output
+    if qiime_out:
+        program_output += qiime_out
+    if len(program_output) < 1:
+        raise AttributeError(
+            "There are no tasks for join_asvbins to do."
+            " Check that all arguments are logical. For example, if you provided"
+            " 16S from bins but not asvs then the progam has nothing to do."
+        )
+    return program_output
 
 
 def make_stage1_statistics(output_path:str, search_tool:str,
                            mbstats:pd.DataFrame=None,
-                           barfasta:pd.DataFrame=None, barrnap_stats_path:str=None):
+                           barfasta:pd.DataFrame=None,
+                           barrnap_stats_path:str=None):
     if barfasta is not None:
         barstats = read_gff(barrnap_stats_path)
         barstats_corrected = barfasta[['header', 'start', 'stop']]
         barstats = barstats_reformat(barstats_corrected, barstats, 'bin')
+        barstats = resolve_dup_gene_locs(barstats, bs_name='name',
+                                         bs_start='bin_scaffold_start',
+                                         bs_end='bin_scaffold_end',
+                                         values='barrnap_e-value',
+                                         ascending=True)
         if mbstats is None:
             barstats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
             return
     if mbstats is not None:
+        mbstats = resolve_dup_gene_locs(mbstats,
+                                        bs_name='sseqid',
+                                        bs_start='send', bs_end='sstart',
+                                        values='bitscore', ascending=False)
         mbstats = mbstats_reformat(mbstats, search_tool, '16S')
         if barstats is None:
             mbstats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
@@ -97,14 +153,16 @@ def make_stage1_statistics(output_path:str, search_tool:str,
     stats.to_csv(output_path, sep='\t', index=False, na_rep='NA')
 
 
-def filter_from_mbstats(stats_file_in:str, fasta_file_in:str, fasta_file_out:str,
+def filter_from_mbstats(stats_file_in:str, fasta_file_in:str,
+                        fasta_file_out:str,
                         stats_file_out:str, search_tool:str,  **filter_kargs):
         mbstats = read_mbstats(stats_file_in)
         mbstats = filter_mdstats(mbstats, **filter_kargs)
-        mbstats = mbstats_reformat(mbstats, search_tool, 'asv')
+        mbstats = mbstats_reformat(mbstats, search_tool, 'ASV')
         mbstats.to_csv(stats_file_out, sep='\t', index=False, na_rep='NA')
         filter_fasta_from_headers(fasta_file_in,
-                                  fasta_file_out, mbstats['bin_scaffold_header'].values)
+                                  fasta_file_out,
+                                  mbstats['bin_scaffold_header'].values)
 
 
 def pullseqs_header_name_from_tab(in_fasta_path:str, out_fasta_path:str,

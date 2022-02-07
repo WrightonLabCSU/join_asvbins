@@ -29,7 +29,9 @@ CONFIG_VALUES = {
     "allow_empty": False,
     "fasta_extention": 'fa',
     "verbosity": 2,
-    "generic_16S": None
+    "generic_16s": None,
+    "qiime_out": False,
+    "candidate_16S_seqs": None
 }
 
 # TODO add a section to the readme on this, just this
@@ -49,7 +51,7 @@ FILTER_VALUES = {
 }
 
 
-def join_asvbins(bins:str,
+def join_asvbins(bins:str=CONFIG_VALUES['asv_seqs'],
                  asv_seqs:str=CONFIG_VALUES['asv_seqs'],
                  output_dir:str=CONFIG_VALUES['output_dir'],
                  blast:bool=CONFIG_VALUES['blast'],
@@ -71,36 +73,48 @@ def join_asvbins(bins:str,
                  s1_min_len_pct:float=FILTER_VALUES['s1_min_len_pct'],
                  s2_min_len_pct:float=FILTER_VALUES['s2_min_len_pct'],
                  max_gaps:int=FILTER_VALUES['max_gaps'], snake_rule:str=None,
-                 fasta_extention:str='fa', bin_16S_seqs:str=None,
+                 fasta_extention:str='fa',
                  max_missmatch:int=FILTER_VALUES['max_missmatch'],
-                 no_clean:bool=False, no_filter:bool=False, stats:str=None,
-                 snake_args:dict={}, print_dag:bool=False,
+                 no_clean:bool=False,
+                 no_filter:bool=False,
+                 snake_args:dict={},
+                 print_dag:bool=False,
                  keep_temp=False,
+                 qiime_out=CONFIG_VALUES['qiime_out'],
                  print_rulegraph:bool=False,
-                 threads=1):
+                 threads:int=1,
+                 candidate_16S_seqs:str=CONFIG_VALUES["candidate_16S_seqs"]):
     """
     This is the main entry point of the package
     """
+    if bins is None and candidate_16S_seqs is None:
+        raise AttributeError("You must provided bins to search for"
+                             " 16S sequences or already trimed sequences.")
     output_dir = os.path.abspath(output_dir)
-    assert bin is not None, "You must specify the bins dir"
-    bins = os.path.abspath(bins)
+    if bins is not None:
+        bins = os.path.abspath(bins)
+    if candidate_16S_seqs is not None:
+        candidate_16S_seqs = os.path.abspath(candidate_16S_seqs)
     if asv_seqs is not None:
         asv_seqs = os.path.abspath(asv_seqs)
     if snake_rule is None:
-        if asv_seqs is not None and bin_16S_seqs is None:
-            snake_rule = 'all'
-        elif asv_seqs is not None:
-            snake_rule = "search2_asv_bin_matches"
-        elif bin_16S_seqs is None:
-            snake_rule = "search1_16S_bin_finds"
-    assert len(snake_rule) > 0, "There are no tasks for join_asvbins to do."
-    " Check that all arguments are logical. For example, if you provided"
-    " 16S from bins but not asvs then the progam has nothing to do."
-    if generic_16S is None:
-       generic_16S =  get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
-    assert os.path.exists(generic_16S), \
-        "Unable to locate default generic 16S file, try --generic_16S," \
-        f" path tried {generic_16S}"
+        snake_rule = 'all'
+    if len(snake_rule) < 0:
+        raise AttributeError(
+            "There are no tasks for join_asvbins to do."
+            " Check that all arguments are logical. For example, if you provided"
+            " 16S from bins but not asvs then the progam has nothing to do."
+        )
+    if generic_16s is None:
+       generic_16s =  get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
+    else:
+       generic_16s = os.path.abspath(generic_16s)
+    if not os.path.exists(generic_16s):
+        raise AttributeError(
+            "Unable to locate default generic 16S file, try --generic_16s," \
+            f" path tried {generic_16s}, you may need to specifiy this with the"
+            " -g argument"
+        )
     all_locals = locals()
     quiet = True if verbosity < 3 else False
     snake_verbose = True if verbosity >= 5 else False
@@ -125,10 +139,9 @@ def join_asvbins(bins:str,
         snakemake(get_package_path('Snakefile'), targets=[snake_rule],
                   workdir=output_dir, quiet=quiet, verbose=snake_verbose,
                   config=config, delete_all_output=True, **snake_args)
-    # Note that stats='stats should work'
     snakemake(get_package_path('Snakefile'), targets=[snake_rule],
               workdir=output_dir, quiet=quiet, verbose=snake_verbose,
-              config=config, cores=threads, notemp=keep_temp, **snake_args)
+              config=config, cores=threads, use_conda=True, notemp=keep_temp, **snake_args)
 
 
 class ParseKwargs(argparse.Action):
@@ -225,13 +238,16 @@ def main():
     parser.add_argument("--keep_temp", action='store_true',
                         help="Specifies that temporary files should be kept."
                         " This is mostly for debuging.")
+    parser.add_argument("--qiime_out", action='store_true',
+                        help="Specifies that in adition to a fna file a qza"
+                        " file for qimme should also be made with each run.")
     parser.add_argument("--allow_empty", action='store_true',
                         help="Specifies that empty results in stage 1 search,"
                         " AKA searching 16S in bins, should be tolerated, and"
                         " the program should continue with limited result")
-    parser.add_argument("--bin_16S_seqs", type=str, default=None,
+    parser.add_argument("--candidate_16S_seqs", type=str, default=None,
                         help="Provide a fasta file of 16S sequences to surve"
-                        " as input to the sectond search in the sequence,"
+                        " as input to the second search in the sequence,"
                         " the search matching bins against asv's. If this"
                         " argument is provided then the bins argument will"
                         " be ignored and the stage on fast and stats.tab"

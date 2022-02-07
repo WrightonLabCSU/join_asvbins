@@ -9,7 +9,6 @@ dependencies:
   - scikit-bio
   - mmseqs2!=10.6d92c
   - barrnap
-  - snakemake
-  - pip
+  - snakemake-minimal
   - pip:
     - join_asvbins
