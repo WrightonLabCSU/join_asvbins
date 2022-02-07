@@ -27,38 +27,48 @@ If you wish to, or a forced by circumstance, to install this tool outside of con
 
 ## Output
 
-The program makes and removes many temporary files while running, but when the program finishes running only 4 files should remain in the output directory. The output files are:
+
+The candidate files concern sequences that are candidates to be matched to ASVs. In other
+words, a sequence is a sequence derived from the genome that is identified as a potential 16S
+rRNA gene by Barrnap or is an identified 16S rRNA gene sequence in the generic 16S rRNA
+gene data set by BLAST or MMSeqs2. These candidate sequences derived from the input
+genomes are in candidate_sequences.fna, and the statistics (E.g. BLAST, MMseqs, Barrnap) that
+describe those sequences are in candidate_statistics.tsv. The match files concern candidate
+sequences that matched to the provided ASV sequences by BLAST/MMseqs. The trimmed
+sequences are in match_sequences.fna, and the statistics that describe those sequences are in
+match_statistics.tsv.
+
+The program makes and removes many temporary files while running, but when the program
+finishes running only 4 files should remain in the output directory. The output files are:
 
 1. candidate_statistics.tsv
 2. candidate_sequences.fna
 3. match_statistics.tsv
 4. match_sequences.fna
 
-The candidate files concern sequences that are candidates to be asvs. A sequence is a candidate if BLAST/MMseqs matches it to a sequence in the generic 16S data set, or it is identified as a potential 16S by Barrnap, and it meets our own selection criteria. The sequences themselves are in  candidate_sequences.fna, and the numbers that describe those sequences are in candidate_statistics.tsv.
-The match files concern sequences previously found to be candidates, and where matched to the ASV sequences by BLAST/MMseqs. The sequences themselves are in  match_sequences.fna, and the numbers that describe those sequences are in match_statistics.tsv.
-
-
 ## Use Example
+
 ```
 join_asvbins \
         -b path/to/bins/folder/or/file.fa \
         -a /path/to/asv/file.fa \
         -o /path/to/output \
+        -g <Path to a generic 16S fasta> \
         -t 20 # Threads
 ```
 
 The most important command line options are:
 
 ```
-  -b BINS, --bins BINS  The bin that you would like to match asvs to. This can be an fna file that has all the bins
+  -b BINS, --bins BINS  The bin that you would like to match ASVs to. This can be an fna file that has all the bins
                         combined or a directory of bins in separate fa files, but you must run the rename script
                         before you use this tool
 
   -a ASV_SEQS, --asv_seqs ASV_SEQS
-                        The asvs you would like to attach to your bins.
+                        The ASVs you would like to match to your bins.
 
   --bin_16S_seqs BIN_16S_SEQS
-                        Provide a fasta file of 16S sequences to serve as input to the second search in the sequence, the search matching bins against asv's. If this argument is provided then the bins argument will be ignored and the stage on fast and stats.tab not be made. Note
+                        Provide a fasta file of 16S sequences to serve as input to the second search in the sequence, the search matching bins against ASV's. If this argument is provided then the bins argument will be ignored and the stage on fast and stats.tab not be made. Note
                         that your sequences must be trimmed, before you run this program. (default: None)
 
   -o OUTPUT_DIR, --output_dir OUTPUT_DIR
@@ -68,27 +78,30 @@ The most important command line options are:
                         The number of threads that will be used by the program and subprocess.
 
   --no_clean            Specifies that the directory should NOT be cleaned of results of pass runs. If your run is
-                        interrupted this will allow you to to pick up. where you left off. Use at your own risk.
+                        interrupted this will allow you to pick up. where you left off. Use at your own risk.
    -g GENERIC_16S, --generic_16S GENERIC_16S
                         A set of generic_16S files that may be part of your bins. (default: None)
   --blast               Specifies that blast should be used instead of mmseqs. Good if you have limited memory or don't trust MMseqs2. (default: False)
 ```
+
 But there are many more, use `join_asvbins -h` to see all of them.
+
 
 To get the full benefits of the program, it is expected that a user will run the program having specified at least `--bins`, `--asv_seqs`, `--output_dir` and `--generic_16S`, or more simply `-b`, `-a`, `-o` and `-g`, with appropriate values as described above. Running with these arguments and without the --candidates argument will result in a full run, a full run is the name we use to describe a run that produces all the main output data sets, that is to say  the candidate and match data sets.
 
 If the asv_seqs argument is not provided, then only the data for candidate ASVs will be produced. If the --candidates argument is provided, then the --bins argument will be ignored and only data for matches to the file specified by --candidates will be produced. In the documentation, we refer to two of these options as a partial run.
 
-The `--generic_16S` option is currently required, but there are plans to make this optional. This argument must point to a FASTA file that can be used to find candidate 16S sequences. It should therefore be a large collection of diverse 16S sequences, for example we use a clustered version of the SILVA database. Once we move our database to an accessible location, we will give the user the option of admitting this argument and downloading our DB to use instead.
+The `--generic_16S` option is currently required, but there are plans to make this optional. This argument must point to a FASTA file that can be used to find candidate 16S sequences. It should therefore be a large collection of diverse 16S sequences. For example we use a clustered version of the SILVA database. Once we move our to an accessible location, we will give the user the option of admitting this argument and downloading our DB to use instead.
 
 A longer exploration of options will also be added to the wiki soon, and some of the more important advanced options are in this document, in a section by the same name. If it is not clear to you how to use these arguments, please look at the example section below.
 
 ## How it works
 
-Most of the program is hidden from the user and it is hoped that they will never need to know the fine details of the process, but if something happens to go wrong then this may help explain why .
+Most of the program is hidden from the user, and it is hoped that they will never need to know the fine details of the process, but if something happens to go wrong then this may help explain why .
 
 /*:Under the hood join_asv_bins activates a [Snakemake](https://snakemake.readthedocs.io/en/stable/) pipeline, which orders tasks based on the inputs that are required, and the outputs that are expected. The order of tasks takes the form of a Directed Acyclic graph (DAG) an example of which is shown below. In the example below each task is listed in order from first to run at the top to last to run at the bottom.  For example the last task to run is named all, and its job is only to ensure all the final output files are created. It is also important to know that your DAG may not look like this one. This DAG depends on the options being present for a full run, producing candidate, and match sequences and statistics. If you do a partial run option your DAG will contain only a fraction of these steps.
 */
+
 Below you can see a visualization of the entire matching pipeline complete with major inputs and outputs. This figure can give an approximate idea of how the pipeline works in a full or partial run, but it is an abstraction, not a literal example of the programmed pipeline.
 
 
@@ -154,7 +167,7 @@ join_asvbins \
         -b <your bins folder or file> \
         -a <ASV FASTA file> \
         -o <The output directory> \
-        -g <Path to a generic 16S fasta> \
+        -g <Path to a generic 16S fasta>
 ```
 
 
