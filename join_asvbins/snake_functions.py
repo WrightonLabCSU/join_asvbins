@@ -6,6 +6,8 @@ from join_asvbins.utils import df_to_fasta, fasta_to_df, read_mbstats, \
     barstats_reformat, combine_fasta, filter_fasta_from_headers, read_gff, \
     get_stage1_mbstats_fasta
 
+CANDIDATE_16S_SEQS_PATH = 'candidate_sequences.fna'
+
 
 def resolve_dup_gene_locs(mbstats:str, bs_name:str, bs_start:str,
                           bs_end:str, values:str, ascending:bool):
@@ -100,6 +102,26 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     make_stage1_statistics(out_stats_path, search_tool, mbstats=mbstats,
                            barfasta=barfasta,
                            barrnap_stats_path=barrnap_stats_path)
+
+
+def set_program_output(bins_path:str=None, asv_seqs_path:str=None,  qiime_out:bool=False):
+    search1_output = ["candidate_statistics.tsv", CANDIDATE_16S_SEQS_PATH]
+    search2_output = ["match_statistics.tsv", "match_sequences.fna"]
+    qiime_output = ["match_sequences.qza"]
+    program_output = []
+    if bins_path is not None:
+        program_output += search1_output
+    if asv_seqs_path is not None:
+        program_output += search2_output
+    if qiime_out:
+        program_output += qiime_out
+    if len(program_output) < 1:
+        raise AttributeError(
+            "There are no tasks for join_asvbins to do."
+            " Check that all arguments are logical. For example, if you provided"
+            " 16S from bins but not asvs then the progam has nothing to do."
+        )
+    return program_output
 
 
 def make_stage1_statistics(output_path:str, search_tool:str,

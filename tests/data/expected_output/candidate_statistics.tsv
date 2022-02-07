@@ -1,0 +1,5 @@
+16S_header	bin_scaffold_header	pident	length	mismatch	gapopen	16S_start	16S_end	bin_scaffold_start	bin_scaffold_end	evalue	bitscore	search_tool	name	barrnap_e-value	barrnap_attribute
+EF406549.1.1479	KS_meg_bin.20_k141_303248	99.6	1478.0	6.0	0.0	1.0	1478.0	10117	11593	0.0	2624.0	MMseqs2	NA	NA	NA
+LOEZ01000043.3976.5502	KS_meg_bin.20_k141_303248	84.5	1523.0	234.0	0.0	2.0	1524.0	10111	11622	0.0	1655.0	MMseqs2	NA	NA	NA
+CP011663.9343.10860	KS_meg_bin.20_k141_303248	83.0	1515.0	257.0	0.0	1.0	1515.0	10108	11622	0.0	1549.0	MMseqs2	NA	NA	NA
+NA	KS_meg_bin.20_k141_303248	NA	NA	NA	NA	NA	NA	10115	11622	NA	NA	barrnap:0.9	KS_meg_bin.20_k141_303248	0.0	Name=16S_rRNA;product=16S ribosomal RNA

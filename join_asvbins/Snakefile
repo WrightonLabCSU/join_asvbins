@@ -4,7 +4,8 @@ import glob
 import pathlib
 import pandas as pd
 from join_asvbins.snake_functions import combine_mbstats_barrnap, \
-    pullseqs_header_name_from_tab, filter_from_mbstats
+    pullseqs_header_name_from_tab, filter_from_mbstats, set_program_output, \
+    CANDIDATE_16S_SEQS_PATH
 
 
 
@@ -41,12 +42,16 @@ HTTP = HTTPRemoteProvider()
 
 
 # Set the appropriate output, This can be moved
-if os.path.isdir(bins_path):
-    bins_folder = bins_path
-    path_to_combined_bins = LOCALY_COMBINED_BINS
+if bins_path is not None:
+    if os.path.isdir(bins_path):
+        bins_folder = bins_path
+        path_to_combined_bins = LOCALY_COMBINED_BINS
+    else:
+        bins_folder = "NA"
+        path_to_combined_bins = bins_path
 else:
     bins_folder = "NA"
-    path_to_combined_bins = bins_path
+    path_to_combined_bins = "NA"
 
 # Set the appropriate output, This also can be moved
 if asv_seqs_path is None:
@@ -59,78 +64,14 @@ else:
     asv_seqs_qva = 'NA'
     asv_seqs_fa = asv_seqs_path
 
-CANDIDATE_16S_SEQS_PATH = 'candidate_sequences.fna'
 
 if candidate_16S_seqs is None:
     candidate_16S_seqs = CANDIDATE_16S_SEQS_PATH
 
 
-def set_program_output(asv_seqs_path, candidate_asv_seqs, candidate_16S_seqs):
-    search1_output = ["candidate_statistics.tsv", CANDIDATE_16S_SEQS_PATH]
-    search2_output = ["match_statistics.tsv", "match_sequences.fna"]
-    qiime_output = ["match_sequences.qza"]
-    if asv_seqs_path is not None and candidate_asv_seqs is None:
-        return search1_output + search2_output + (qiime_output if qiime_out else [])
-    if asv_seqs_path is not None:
-        return search2_output + (qiime_output if qiime_out else [])
-    if candidate_asv_seqs is None:
-        return search1_output
-    if candidate_16S_seqs is not None:
-        return search2_output
-
-
 rule all:
     input:
-        set_program_output(asv_seqs_path, candidate_asv_seqs, candidate_16S_seqs)
-
-
-# rule all_qiime:
-#     input:
-#         "candidate_statistics.tsv",
-#         "candidate_sequences.fna",
-#         "match_statistics.tsv",
-#         "match_sequences.fna",
-#         "match_sequences.qza"
-#
-#
-# rule search1_16s_bin_finds:
-#     input:
-#         ("candidate_statistics.tsv" if candidate_asv_seqs is None else candidate_asv_seqs),
-#         "candidate_sequences.fna"
-
-
-rule search2_asv_bin_matches:
-    input:
-        "match_statistics.tsv",
-        "match_sequences.fna"
-
-
-rule search2_asv_bin_matches_qiime:
-    input:
-        "match_statistics.tsv",
-        "match_sequences.fna",
-        "match_sequences.qza"
-
-# rule stage1_set_output_stats:
-#     input:
-#         mbstats_path = f"stage1_asvs_{search_tool}.tab",
-#         barstats_raw_path = "barrnap_16S-gff.gff",
-#         barstats_corrected_path = f"barrnap_corrected_stats_no_{search_tool}.tab"
-#     output:
-#         protected("16s_bin_finds_stats.tab")
-#     run:
-#         stage1_statistics(**input, output_path=output[0], search_tool=search_tool)
-
-
-# rule stage2_set_output_fasta:
-#     input:
-#         f"barrnap_and_{search_tool}_asvs_matching_seqs.fna"
-#     output:
-#     shell:
-#         """
-#         cp {input} {output}
-#         """
-
+        set_program_output(bins_path, asv_seqs_path,  qiime_out)
 
 rule combine_barrnap_with_other: # where other is blast or mmseqs
     input:
@@ -179,7 +120,7 @@ rule get_asv_fa_folder_from_qiime:
 
 rule get_fa_from_qiime_folder:
     input:
-        directory("qiime_data")
+       "qiime_data"
     output:
         temp(UNQIIME_ASV_FASTA)
     shell:
@@ -207,7 +148,8 @@ rule mmseqs_stage1_search:
         generic_16s_path # Query
     output:
         temp(directory("mmseqs_stage1_db")),
-        temp("stage1_asvs_mmseqs.tab")
+        temp("stage1_asvs_mmseqs.tab"),
+        temp(directory("temp"))
     threads:
         workflow.cores
     params:
@@ -268,7 +210,8 @@ rule mmseqs_stage2_search:
        asv_seqs_fa # Query
     output:
        temp(directory("mmseqs_stage2_db")),
-       temp("stage2_asvs_mmseqs.tab")
+       temp("stage2_asvs_mmseqs.tab"),
+       temp(directory("temp"))
     threads:
         workflow.cores
     params:
@@ -321,7 +264,7 @@ rule stage2_filtering:
 
 rule blast_stage2_search:
     input:
-       "barrnap_and_blast_asvs.fna", # Target
+        candidate_16S_seqs, # Target
         asv_seqs_fa, # Query
     output:
         temp(directory("blast_stage2_db")),

@@ -2,24 +2,25 @@
 
 
 # Comparing 16S (ASV) to Bins
-
-This tool provides a method for connecting 16S rRNA sequences to a set of bin-scaffolds.
-The code is in essence a wrapper around a Snakemake pipeline that uses barnap and MMseqs2, with the option of substituting BLAST for MMseqs2.
-This is not a perfect system, and is also a work in progress.
-
-## Install
-
-The tool can run on as few as 1 core but it will utilize as many cores as specified by the -t argument.  MMseqs2 is much faster than BLAST but will require more memory, often in the range of 40 - 60 gigabytes depending on the size of the target data set. Using blast will decrease the memory requirements but will also require a long run time.
+This tool provides a method for
+(i) identifying and recovering 16S rRNA genes in genome scaffolds and
+(ii) connecting these genomic 16S rRNA sequences to a set amplicon sequence variants (ASVs) 16S rRNA genes from amplicon sequencing.
+ The code works around a Snakemake pipeline that uses barnap and MMseqs2, with the option of substituting BLAST for MMseqs2.
 
 ## Install
 
-The installation should be no more complex than:
+The tool can run on as few as 1 core but it will utilize as many cores as specified by the -t argument.  MMseqs2 is much faster than BLAST but will require more memory, often in the range of 40 - 60 gigabytes depending on the size of the target data set. Using BLAST will decrease the memory requirements but will also require a long run time.
+
+
+The falowing comands will install the tool in a conda enviroment
 
 ```
 wget https://raw.githubusercontent.com/rmFlynn/16s_to_bins_project/main/environment.yaml
 conda env create -f environment.yaml -n join_asvbins
 conda activate join_asvbins
 ```
+Creating a conda environment is the best way to run tool, because it depends not only on several python libraries but also on several command line tools.
+If you wish to, or are forced by circumstance, to install this tool outside of conda you should have all the information you need in the environment.yaml file to do so.
 
 ## Output
 
@@ -103,15 +104,19 @@ This option can give hours back to the user, but it is **ADVANCED**. It is not g
 -  [ ] Split mmseqs into multi steps
 - [ ] Rework the pandas code so that there is no warning
 - [ ] Stop the fai warnings from barrnap, make new rules if you must.
--  [ ] More general tests
--  [ ] Add a test to run full snake pipelines. (I am close on this)
-* [x] Add a better file path does not exist message, snakemakes does not handle this well with this setup.
-* [x] Check that verbose works as well as quiet dose
--  [ ] Compare my results to more manual equivalents
+-  [X] More general tests
+-  [X] Add a test to run full snake pipelines. (I am close on this)
+* [X] Add a better file path does not exist message, snakemakes does not handle this well with this setup.
+* [X] Check that verbose works as well as quiet dose
+-  [X] Compare my results to more manual equivalents
 -  [ ] Complete the outputs section of this readme
 -  [ ] Add an expanded options section to the wiki
--  [ ] Add a slum example below
+-  [X] Add a slurm example below
 - [ ] faidx is too loud in verbose mode
+- [ ] Edge case test are dificult untill I get an exmple, but they need doing
+- [ ] Add ASV taxonomy (silva)
+- [ ] Add Bin taxonomy (GTDB)
+- [ ] Clareify: does the 16S match have the V4 region (yes/no)
 - [ ]
 
 
