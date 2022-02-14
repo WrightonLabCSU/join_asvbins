@@ -33,10 +33,11 @@ jobs:
           command: |
             export PATH="$HOME/miniconda/bin:$PATH"
             conda update -y conda
-            conda create -n myenv python=$PYTHON_VERSION
-            wget https://raw.githubusercontent.com/rmFlynn/16s_to_bins_project/main/environment.yaml
-            conda env create -f environment.yaml -n join_asvbins
+            conda create -n join_asvbins python=3.9
             source activate join_asvbins
+            conda install pandas pytest scikit-bio mmseqs2!=10.6d92c barrnap snakemake-minimal pip
+            ls -lah
+            pip install .
             pytest tests/
 
 # Invoke jobs via workflows
