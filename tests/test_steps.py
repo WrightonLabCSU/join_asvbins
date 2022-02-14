@@ -26,7 +26,7 @@ def test_run_blast(tmp_path):
         bins = MINI_BINS,
         asv_seqs = MINI_ASV,
         output_dir = output_path,
-        generic_16s = MINI_16S,
+        generic_16S = MINI_16S,
         threads=4,
         verbosity=6,
         blast=True
@@ -44,7 +44,7 @@ def test_run_mmseqs(tmp_path):
         bins = MINI_BINS,
         asv_seqs = MINI_ASV,
         output_dir = output_path,
-        generic_16s = MINI_16S,
+        generic_16S = MINI_16S,
         threads=4,
         verbosity=6
     )
@@ -61,7 +61,7 @@ def test_get_matches(tmp_path):
         candidate_16S_seqs=EXPECTED_CANDIDATE_FNA,
         output_dir = output_path,
         asv_seqs = MINI_ASV,
-        generic_16s = MINI_16S,
+        generic_16S = MINI_16S,
         threads=4,
         verbosity=6
     )
@@ -75,7 +75,7 @@ def test_get_candidates(tmp_path):
     join_asvbins(
         bins = MINI_BINS,
         output_dir = output_path,
-        generic_16s = MINI_16S,
+        generic_16S = MINI_16S,
         threads=4,
         verbosity=6
     )
