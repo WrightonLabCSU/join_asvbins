@@ -105,14 +105,14 @@ def join_asvbins(bins:str=CONFIG_VALUES['asv_seqs'],
             " Check that all arguments are logical. For example, if you provided"
             " 16S from bins but not asvs then the progam has nothing to do."
         )
-    if generic_16s is None:
-       generic_16s =  get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
+    if generic_16S is None:
+       generic_16S =  get_package_path("data/silva_clusterd_95pct_rep_seq.fasta")
     else:
-       generic_16s = os.path.abspath(generic_16s)
-    if not os.path.exists(generic_16s):
+       generic_16S = os.path.abspath(generic_16S)
+    if not os.path.exists(generic_16S):
         raise AttributeError(
-            "Unable to locate default generic 16S file, try --generic_16s," \
-            f" path tried {generic_16s}, you may need to specifiy this with the"
+            "Unable to locate default generic 16S file, try --generic_16S," \
+            f" path tried {generic_16S}, you may need to specifiy this with the"
             " -g argument"
         )
     all_locals = locals()
