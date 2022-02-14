@@ -29,7 +29,7 @@ CONFIG_VALUES = {
     "allow_empty": False,
     "fasta_extention": 'fa',
     "verbosity": 2,
-    "generic_16s": None,
+    "generic_16S": None,
     "qiime_out": False,
     "candidate_16S_seqs": None
 }
