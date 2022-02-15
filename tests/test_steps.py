@@ -27,7 +27,7 @@ def test_run_blast(tmp_path):
         asv_seqs = MINI_ASV,
         output_dir = output_path,
         generic_16S = MINI_16S,
-        threads=4,
+        threads=1,
         verbosity=6,
         blast=True
     )
@@ -45,7 +45,7 @@ def test_run_mmseqs(tmp_path):
         asv_seqs = MINI_ASV,
         output_dir = output_path,
         generic_16S = MINI_16S,
-        threads=4,
+        threads=1,
         verbosity=6
     )
     assert os.path.exists(os.path.join(output_path, "candidate_sequences.fna"))
@@ -62,7 +62,7 @@ def test_get_matches(tmp_path):
         output_dir = output_path,
         asv_seqs = MINI_ASV,
         generic_16S = MINI_16S,
-        threads=4,
+        threads=1,
         verbosity=6
     )
     assert os.path.exists(os.path.join(output_path, "match_sequences.fna"))
@@ -76,7 +76,7 @@ def test_get_candidates(tmp_path):
         bins = MINI_BINS,
         output_dir = output_path,
         generic_16S = MINI_16S,
-        threads=4,
+        threads=1,
         verbosity=6
     )
     assert os.path.exists(os.path.join(output_path, "candidate_sequences.fna"))
