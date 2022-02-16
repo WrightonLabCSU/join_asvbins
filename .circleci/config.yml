@@ -35,7 +35,7 @@ jobs:
             conda update -y conda
             conda create -n join_asvbins python=3.9
             source activate join_asvbins
-            conda install pandas pytest scikit-bio mmseqs2 samtools barrnap blast snakemake-minimal pip
+            conda install pandas pytest scikit-bio mmseqs2 samtools==1.11 barrnap blast snakemake-minimal pip
             ls -lah
             pip install .
             pytest tests/
