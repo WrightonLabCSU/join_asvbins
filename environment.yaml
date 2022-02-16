@@ -10,6 +10,7 @@ dependencies:
   - mmseqs2!=10.6d92c
   - barrnap
   - blast
+  - samtools
   - snakemake-minimal
   - pip:
     - join_asvbins
