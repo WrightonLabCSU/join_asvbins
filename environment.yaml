@@ -12,5 +12,6 @@ dependencies:
   - blast
   - samtools==1.11
   - snakemake-minimal
+  - pip
   - pip:
     - join_asvbins
