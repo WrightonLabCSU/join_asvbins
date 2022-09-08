@@ -25,13 +25,8 @@ def fasta_to_df(path, headers=None):
     if os.stat(path).st_size == 0:
         return pd.DataFrame()
     try:
-        if headers is not None:
-            dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
-                               for seq in read_fa(path, format='fasta')
-                               if seq.metadata['id'] in headers})
-        else:
-            dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
-                               for seq in read_fa(path, format='fasta')})
+        dafr = pd.DataFrame({seq.metadata['id']:[seq.values]
+                             for seq in read_fa(path, format='fasta')})
     except ValueError:
         warnings.warn('Some fasta file was not read, posbly it is the wrong'
                       'format.')
@@ -39,6 +34,8 @@ def fasta_to_df(path, headers=None):
     dafr = dafr.T
     dafr.reset_index(inplace=True)
     dafr.columns = ['header', 'seq']
+    if headers is not None:
+        dafr= dafr.merge(pd.DataFrame({'header': headers}), on='header', how='inner')
     return dafr
 
 
@@ -75,24 +72,28 @@ def merge_duplicate_seqs(data:pd.DataFrame) -> pd.DataFrame:
 
 
 def get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path):
-    mbseqs = fasta_to_df(mbstats_fasta_path,
-                         mbstats['sseqid'].values)
-    mbdata = pd.merge(mbseqs, mbstats, right_on='sseqid',
-                      left_on='header',
-                        how='inner')
+    # Get the mbseqs data and add a length column, then make a double index
+    mbseqs = fasta_to_df(mbstats_fasta_path)
+    mbseqs['len'] = mbseqs['seq'].apply(len)
+    mbseqs = mbseqs.reset_index()# sanity check
+    mbseqs.set_index(['header', 'len'], inplace=True)
+    # Set the same ined on the stats
+    mbstats = mbstats.reset_index() # sanity check
+    mbstats.set_index(['sseqid', 'slen'], inplace=True)
+    mbseqs.index.names = ['sseqid', 'slen']
+    # join the data
+    mbdata2 = pd.merge(mbseqs,
+                       mbstats, 
+                       left_index=True,
+                       right_index=True,
+                       how='inner')
+    # mbdata = (mbdata
+    #            .reset_index(drop=False)
+    #            .rename(columns={'index': 'sseqid'}))
+    # Finalize the data
+    mbdata.reset_index(inplace=True)
     mbdata = process_mbdata(mbdata)
     return mbdata
-
-
-# def save_barnap_stats(barfasta, out_barstats_path):
-#     """
-#     save barrnap stats, run process_barfasta first!
-#
-#     :param barfasta:
-#     :param out_barstats_path:
-#     """
-#     barfasta[['header', 'start', 'stop']].to_csv(out_barstats_path,
-#                                              sep='\t', index=False)
 
 
 def process_barfasta(data:pd.DataFrame) -> pd.DataFrame:
@@ -151,7 +152,9 @@ def process_mbdata(data:pd.DataFrame, headers=None) -> pd.DataFrame:
 def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame,
                   search_tool:str) -> pd.DataFrame:
     barseqs= barrnap[['header', 'seq']].copy()
-    mbseqs = mbstats[['header', 'seq']].copy()
+    # header is matsed to sseqid so we need to make same
+    mbseqs = mbstats[['sseqid', 'seq']].copy()
+    mbseqs.columns = ['header', 'seq']
     mbseqs['mbseqs'] = True
     barseqs['barseqs'] = True
     # NOTE we have a choice for merge, we can convert the arays to tuples or

@@ -1,10 +1,12 @@
 """These functions are used directly by the snakemake pipline"""
 import os
 import pandas as pd
-from join_asvbins.utils import df_to_fasta, fasta_to_df, read_mbstats, \
-    filter_mdstats, mbstats_reformat,  process_mbdata, process_barfasta, \
-    barstats_reformat, combine_fasta, filter_fasta_from_headers, read_gff, \
-    get_stage1_mbstats_fasta
+from join_asvbins.utils import (
+    df_to_fasta, fasta_to_df, read_mbstats, 
+    filter_mdstats, mbstats_reformat,  
+    process_barfasta, barstats_reformat, 
+    combine_fasta, filter_fasta_from_headers, 
+    read_gff, get_stage1_mbstats_fasta)
 
 CANDIDATE_16S_SEQS_PATH = 'candidate_sequences.fna'
 
@@ -55,9 +57,13 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     :raises ValueError:
     """
     # TODO add checks that these functions return empty dfs if given empty
+    print('start merge')
+    print('Load barnap FASTA')
     barfasta = fasta_to_df(barrnap_fasta_path)
+    print('Load stats')
     mbstats_raw = read_mbstats(mbstats_stats_path)
     mbstats_raw.drop_duplicates(inplace=True)
+    print('Filter stats FASTA')
     mbstats = filter_mdstats(mbstats_raw, **filter_kargs)
     if barfasta.empty and mbstats.empty:
         raise ValueError(f"There are no hits from barrnap or {search_tool},"
@@ -94,11 +100,13 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
             df_to_fasta(data, out_fasta_path)
             make_stage1_statistics(out_stats_path, search_tool, mbstats=data)
             return
+    print('Finalize data')
     mbdata = get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path)
     barfasta = process_barfasta(barfasta)
-    # save_barnap_stats(barfasta, out_barstats_path)
     data = combine_fasta(mbdata, barfasta, search_tool)
+    print("Write output")
     df_to_fasta(data, out_fasta_path)
+    mbstats.reset_index(inplace=True) # sanity check
     make_stage1_statistics(out_stats_path, search_tool, mbstats=mbstats,
                            barfasta=barfasta,
                            barrnap_stats_path=barrnap_stats_path)
