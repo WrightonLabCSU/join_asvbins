@@ -82,15 +82,11 @@ def get_stage1_mbstats_fasta(mbstats, mbstats_fasta_path):
     mbstats.set_index(['sseqid', 'slen'], inplace=True)
     mbseqs.index.names = ['sseqid', 'slen']
     # join the data
-    mbdata2 = pd.merge(mbseqs,
+    mbdata = pd.merge(mbseqs,
                        mbstats, 
                        left_index=True,
                        right_index=True,
                        how='inner')
-    # mbdata = (mbdata
-    #            .reset_index(drop=False)
-    #            .rename(columns={'index': 'sseqid'}))
-    # Finalize the data
     mbdata.reset_index(inplace=True)
     mbdata = process_mbdata(mbdata)
     return mbdata
@@ -165,7 +161,7 @@ def combine_fasta(mbstats:pd.DataFrame, barrnap:pd.DataFrame,
     data.rename(columns={'seq_x': 'seq_bar', 'seq_y': 'seq_other'},
                 inplace=True)
     def select_and_describe_seq(x):
-        if x['barseqs'] and not x['mbseqs']:
+        if ['barseqs'] and not x['mbseqs']:
             return x['seq_bar'], 'Barnnap'
         elif x['mbseqs'] and not x['barseqs']:
             return x['seq_other'], search_tool
@@ -280,14 +276,10 @@ def barstats_reformat(barstats_corrected:pd.DataFrame,
     barstats_raw = barstats_raw[[i for i in output_colums]].copy()
     barstats_raw['name'] = barstats_raw['seqname'].\
        str.split(':', expand=True)[0]
-    barstats_corrected = barstats_corrected[['header']]
-    barstats_corrected.rename(columns = {"header": "name"},
-                              inplace=True)
-    barstats_out = pd.merge(barstats_corrected, barstats_raw, on='name',
-                            how='outer')
-    barstats_out.rename(columns=output_colums, inplace=True)
+    barstats_trim = barstats_corrected[['header']].rename(columns = {"header": "name"})
+    barstats_out = pd.merge(barstats_trim, barstats_raw, on='name',
+                            how='outer').rename(columns=output_colums)
     return barstats_out
-
 
 def read_gff(gff_path:str) -> pd.DataFrame:
     out_df = pd.read_csv(gff_path, sep='\t',

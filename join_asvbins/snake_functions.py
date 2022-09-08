@@ -107,9 +107,9 @@ def combine_mbstats_barrnap(mbstats_fasta_path:str, mbstats_stats_path:str,
     print("Write output")
     df_to_fasta(data, out_fasta_path)
     mbstats.reset_index(inplace=True) # sanity check
-    make_stage1_statistics(out_stats_path, search_tool, mbstats=mbstats,
-                           barfasta=barfasta,
-                           barrnap_stats_path=barrnap_stats_path)
+    breakpoint()
+    make_stage1_statistics(out_stats_path, search_tool, mbstats=mbstats, 
+                           barfasta=barfasta, barrnap_stats_path=barrnap_stats_path)
 
 
 def set_program_output(bins_path:str=None, asv_seqs_path:str=None,  qiime_out:bool=False):
