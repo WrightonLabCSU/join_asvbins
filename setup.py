@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 from os import path
 
 __author__ = 'rmflynn'
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 here = path.abspath(path.dirname(__file__))
 

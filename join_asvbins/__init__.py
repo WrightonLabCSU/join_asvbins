@@ -196,9 +196,6 @@ def main():
                         " to visulize")
     parser.add_argument( "-a", "--asv_seqs",  type=str, default=None,
                         help="The asvs you would like to atach to your bins.")
-    parser.add_argument("--stats",  type=str, default=None,
-                        help="Passed directly to snakemake to serve as the"
-                        " output location for the stats file.")
     parser.add_argument("-g", "--generic_16S",  type=str,
                         default=CONFIG_VALUES['generic_16S'],
                         help="A set of generic_16S files that may be part of"
